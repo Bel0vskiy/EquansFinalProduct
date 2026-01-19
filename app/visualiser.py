@@ -48,9 +48,8 @@ class RoomVisualizer:
         return traces
 
     @staticmethod
-    def build_figure(room_length, room_width, room_height, lamps_m: np.ndarray):
+    def build_figure(room_length, room_width, room_height, lamps_m=None, sockets_m=None):
         fig = go.Figure()
-
         for tr in RoomVisualizer.room_wireframe_traces(room_length, room_width, room_height):
             fig.add_trace(tr)
 
@@ -72,6 +71,16 @@ class RoomVisualizer:
                     ),
                 )
             )
+
+        if sockets_m is not None and len(sockets_m):
+            fig.add_trace(go.Scatter3d(
+                x=sockets_m[:, 0], y=sockets_m[:, 1], z=sockets_m[:, 2],
+                mode="markers+text",
+                text=[str(i + 1) for i in range(len(sockets_m))],
+                textposition="top center",
+                name="sockets",
+                marker=dict(symbol="circle", size=5)
+            ))
 
         fig.update_layout(
             scene=dict(
