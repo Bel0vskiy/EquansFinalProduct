@@ -1,0 +1,311 @@
+[
+  {
+    "id": "1S$f5UJPL6lvvbafDPKeK_",
+    "name": "0.01",
+    "long_name": "Gang",
+    "bbox_min": [
+      -5.304,
+      12.784,
+      0.0
+    ],
+    "bbox_max": [
+      16.624,
+      16.0235000000003,
+      2.7
+    ],
+    "length": 21.927999999999997,
+    "width": 3.2395000000003,
+    "height": 2.7,
+    "lamps": [
+      {
+        "id": "1SWMF$5MD9GBRQcRWlYxId",
+        "name": "63_LF_Taurac_I1D13501 LED 3W algemeen NV spot:T5:3208475",
+        "x": 13.3252500000001,
+        "y": 14.404,
+        "z": 2.4,
+        "x_norm": 0.8495644837650539,
+        "y_norm": 0.5000771724031021,
+        "z_norm": 0.8888888888888888
+      },
+      {
+        "id": "1SWMF$5MD9GBRQcRWlYxIQ",
+        "name": "63_LF_Taurac_I1D13501 LED 3W algemeen NV spot:T5:3208486",
+        "x": -2.87474999999986,
+        "y": 14.404,
+        "z": 2.4,
+        "x_norm": 0.11078301714703305,
+        "y_norm": 0.5000771724031021,
+        "z_norm": 0.8888888888888888
+      },
+      {
+        "id": "3Ya$$51WnCCBYU2s1sRCH7",
+        "name": "63_LF_Taurac_E1D14501 LED 2W vluchtwegarmatuur inbouw pijl boven:T3:3247501",
+        "x": -5.0977019313503895,
+        "y": 14.404,
+        "z": 2.4,
+        "x_norm": 0.009407974673915121,
+        "y_norm": 0.5000771724031021,
+        "z_norm": 0.8888888888888888
+      },
+      {
+        "id": "2QqltMPCPDIBnG8AIEbiet",
+        "name": "64_DD_ledige leiding:ledige leiding:3345322",
+        "x": 6.0487060209006005,
+        "y": 12.784,
+        "z": 1.8,
+        "x_norm": 0.5177264693953212,
+        "y_norm": 0.0,
+        "z_norm": 0.6666666666666666
+      },
+      {
+        "id": "2QqltMPCPDIBnG8AIEbifG",
+        "name": "64_DD_ledige leiding:ledige leiding:3345357",
+        "x": -0.25129397909940104,
+        "y": 12.784,
+        "z": 1.8,
+        "x_norm": 0.23042256571053446,
+        "y_norm": 0.0,
+        "z_norm": 0.6666666666666666
+      },
+      {
+        "id": "2QqltMPCPDIBnG8AIEbif3",
+        "name": "64_DD_ledige leiding:ledige leiding:3345374",
+        "x": 12.3487060209006,
+        "y": 12.784,
+        "z": 1.8,
+        "x_norm": 0.8050303730801078,
+        "y_norm": 0.0,
+        "z_norm": 0.6666666666666666
+      },
+      {
+        "id": "2$okbmd6XAJRx0aaossU4e",
+        "name": "63_LF_Taurac_I1D13501 LED 3W algemeen NV spot:T5:3349661",
+        "x": 5.52525000000014,
+        "y": 14.404,
+        "z": 2.4,
+        "x_norm": 0.49385488872674854,
+        "y_norm": 0.5000771724031021,
+        "z_norm": 0.8888888888888888
+      }
+    ],
+    "sockets": [
+      {
+        "id": "1s_o9zlbX2GPwxi6FybimB",
+        "name": "63_LF_Wieland_contactdoos:contactdoos 4-voudig nood:3254867",
+        "object_type": "63_LF_Wieland_contactdoos:contactdoos 4-voudig nood",
+        "predefined_type": "",
+        "tag": "3254867",
+        "x": -4.4585019189470305,
+        "y": 14.102752601972899,
+        "z": 2.495,
+        "x_norm": 0.03855792051500227,
+        "y_norm": 0.40708522981101286,
+        "z_norm": 0.924074074074074
+      }
+    ]
+  },
+  {
+    "id": "2Le24RSsr5uu5zp3vSBI7x",
+    "name": "0.14",
+    "long_name": "Technische ruimte",
+    "bbox_min": [
+      13.568999999999885,
+      6.705999999999445,
+      0.0
+    ],
+    "bbox_max": [
+      16.438999999999915,
+      8.768999999999895,
+      2.7
+    ],
+    "length": 2.8700000000000294,
+    "width": 2.06300000000045,
+    "height": 2.7,
+    "lamps": [
+      {
+        "id": "1T2gIgZtfDF8X73MDN5Oo8",
+        "name": "63_LF_Taurac_B1D14601 LED 4W noodverlichting:T1:3486245",
+        "x": 16.084,
+        "y": 8.32351926560515,
+        "z": 2.465,
+        "x_norm": 0.8763066202090901,
+        "y_norm": 0.7840616895808781,
+        "z_norm": 0.9129629629629629
+      }
+    ],
+    "sockets": []
+  },
+  {
+    "id": "2Le24RSsr5uu5zp3vSBI7O",
+    "name": "0.13",
+    "long_name": "Wasruimte",
+    "bbox_min": [
+      13.569,
+      8.839,
+      0.0
+    ],
+    "bbox_max": [
+      16.439,
+      12.689,
+      2.7
+    ],
+    "length": 2.869999999999999,
+    "width": 3.8499999999999996,
+    "height": 2.7,
+    "lamps": [
+      {
+        "id": "23apFkEL94VuPuqUGL0iwW",
+        "name": "63_LF_Interlight_IL-CLSR360E:I1:3663970",
+        "x": 16.084,
+        "y": 9.804,
+        "z": 2.465,
+        "x_norm": 0.876306620209059,
+        "y_norm": 0.2506493506493506,
+        "z_norm": 0.9129629629629629
+      }
+    ],
+    "sockets": [
+      {
+        "id": "1Pi3MfKBH03PWEiPn3PhPP",
+        "name": "63_LF_Wieland_contactdoos:contactdoos 4-voudig:3280292",
+        "object_type": "63_LF_Wieland_contactdoos:contactdoos 4-voudig",
+        "predefined_type": "",
+        "tag": "3280292",
+        "x": 15.756710814132001,
+        "y": 9.37666117181753,
+        "z": 2.6,
+        "x_norm": 0.7622685763526135,
+        "y_norm": 0.13965225242013743,
+        "z_norm": 0.9629629629629629
+      },
+      {
+        "id": "1bLo3Ina138wN3ghum0cNy",
+        "name": "63_LF_Wieland_contactdoos:contactdoos 4-voudig:3283321",
+        "object_type": "63_LF_Wieland_contactdoos:contactdoos 4-voudig",
+        "predefined_type": "",
+        "tag": "3283321",
+        "x": 15.7553126734731,
+        "y": 12.0356611313458,
+        "z": 2.6,
+        "x_norm": 0.761781419328606,
+        "y_norm": 0.8303015925573505,
+        "z_norm": 0.9629629629629629
+      }
+    ]
+  },
+  {
+    "id": "0uTKpX65n4F8dUcjgdRsuD",
+    "name": "0.10q",
+    "long_name": "Gang",
+    "bbox_min": [
+      16.719,
+      12.784,
+      0.0
+    ],
+    "bbox_max": [
+      38.462,
+      16.023500000000002,
+      2.7
+    ],
+    "length": 21.743000000000002,
+    "width": 3.2395000000000014,
+    "height": 2.7,
+    "lamps": [
+      {
+        "id": "1SWMF$5MD9GBRQcRWlYxKp",
+        "name": "63_LF_Taurac_I1D13501 LED 3W algemeen NV spot:T5:3208335",
+        "x": 36.8252500000001,
+        "y": 14.404,
+        "z": 2.4,
+        "x_norm": 0.9247228993239249,
+        "y_norm": 0.5000771724031482,
+        "z_norm": 0.8888888888888888
+      },
+      {
+        "id": "1SWMF$5MD9GBRQcRWlYxL7",
+        "name": "63_LF_Taurac_I1D13501 LED 3W algemeen NV spot:T5:3208443",
+        "x": 27.2252500000001,
+        "y": 14.404,
+        "z": 2.4,
+        "x_norm": 0.48320149013476044,
+        "y_norm": 0.5000771724031482,
+        "z_norm": 0.8888888888888888
+      },
+      {
+        "id": "1SWMF$5MD9GBRQcRWlYxIs",
+        "name": "63_LF_Taurac_I1D13501 LED 3W algemeen NV spot:T5:3208458",
+        "x": 20.0252500000001,
+        "y": 14.404,
+        "z": 2.4,
+        "x_norm": 0.15206043324288726,
+        "y_norm": 0.5000771724031482,
+        "z_norm": 0.8888888888888888
+      },
+      {
+        "id": "3Ya$$51WnCCBYU2s1sRCGm",
+        "name": "63_LF_Taurac_E1D14501 LED 2W vluchtwegarmatuur inbouw pijl boven:T3:3247610",
+        "x": 38.115701931350294,
+        "y": 14.404,
+        "z": 2.4,
+        "x_norm": 0.9840731238260724,
+        "y_norm": 0.5000771724031482,
+        "z_norm": 0.8888888888888888
+      },
+      {
+        "id": "2QqltMPCPDIBnG8AIEbifo",
+        "name": "64_DD_ledige leiding:ledige leiding:3345391",
+        "x": 31.248706020900602,
+        "y": 12.784,
+        "z": 1.8,
+        "x_norm": 0.6682475289012831,
+        "y_norm": 0.0,
+        "z_norm": 0.6666666666666666
+      },
+      {
+        "id": "2QqltMPCPDIBnG8AIEbisT",
+        "name": "64_DD_ledige leiding:ledige leiding:3345408",
+        "x": 37.5487060209007,
+        "y": 12.784,
+        "z": 1.8,
+        "x_norm": 0.9579959536816768,
+        "y_norm": 0.0,
+        "z_norm": 0.6666666666666666
+      },
+      {
+        "id": "089wotvg9ANBLezzAJ45Yf",
+        "name": "64_DD_ledige leiding:ledige leiding:3347642",
+        "x": 24.9487060209006,
+        "y": 12.784,
+        "z": 1.8,
+        "x_norm": 0.37849910412089405,
+        "y_norm": 0.0,
+        "z_norm": 0.6666666666666666
+      },
+      {
+        "id": "08ewGV4wjFDvujDo9AuZnz",
+        "name": "63_LF_Taurac_E1D14501 LED 2W vluchtwegarmatuur inbouw pijl boven:T3:3537943",
+        "x": 16.9315480686512,
+        "y": 14.404,
+        "z": 2.4,
+        "x_norm": 0.009775471124095039,
+        "y_norm": 0.5000771724031482,
+        "z_norm": 0.8888888888888888
+      }
+    ],
+    "sockets": [
+      {
+        "id": "1s_o9zlbX2GPwxi6Fybizn",
+        "name": "63_LF_Wieland_contactdoos:contactdoos 4-voudig nood:3254569",
+        "object_type": "63_LF_Wieland_contactdoos:contactdoos 4-voudig nood",
+        "predefined_type": "",
+        "tag": "3254569",
+        "x": 37.644202092140304,
+        "y": 13.691407254014802,
+        "z": 2.495,
+        "x_norm": 0.9623879911760245,
+        "y_norm": 0.2801071937073008,
+        "z_norm": 0.924074074074074
+      }
+    ]
+  }
+]
