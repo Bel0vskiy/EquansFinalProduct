@@ -28,50 +28,40 @@ class GNNViewerWidget(QWidget):
     """
     Main GNN Viewer component, refactored as a QWidget to be embedded in a main window.
     """
-    # Signal to report status messages to the parent window
+
     status_message = Signal(str)
 
     def __init__(self, default_data_path: Optional[str] = None):
         super().__init__()
-        # Removed window title/geometry/status bar init as this is now a widget
-
-        # Core components
         self.scene_manager = SceneManager()
-        self.units_data: Dict[int, str] = {}  # Maps unit ID to its directory path
+        self.units_data: Dict[int, str] = {}
         self.current_building_path: Optional[str] = None
 
-        # Build UI
         self._init_ui()
-        # Menu init removed - Parent window will handle menus
-        # Status bar init removed - Parent window will handle status
         self._init_context_menu()
 
         print("MEP Generator initialized.")
 
     def _init_ui(self):
         """Initialize the main UI layout and panels."""
-        # Main layout for this widget
         main_layout = QHBoxLayout(self) 
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
 
-        # --- Left Panel ---
         left_panel_content = QWidget()
-        left_layout = QVBoxLayout(left_panel_content)  # Layout for the content
+        left_layout = QVBoxLayout(left_panel_content)
 
-        # Create a scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setWidget(left_panel_content)
         scroll_area.setMinimumWidth(300)
 
-        # Data Source Group
         data_group = QGroupBox("Data Source")
         data_layout = QVBoxLayout()
         data_layout.setContentsMargins(5, 5, 5, 5)
         
-        # Building Selection Row
+
         building_row = QVBoxLayout()
         building_row.setSpacing(2)
         building_row.addWidget(QLabel("Building Folder:"))
@@ -85,14 +75,12 @@ class GNNViewerWidget(QWidget):
         building_row.addWidget(self.browse_btn)
         
         data_layout.addLayout(building_row)
-        
-        # Line Separator
+
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
         line.setFrameShadow(QFrame.Shadow.Sunken)
         data_layout.addWidget(line)
-        
-        # Unit Selection Row
+
         unit_row = QVBoxLayout()
         unit_row.setSpacing(2)
         unit_row.addWidget(QLabel("Unit Selection:"))
@@ -121,27 +109,25 @@ class GNNViewerWidget(QWidget):
         data_group.setLayout(data_layout)
         left_layout.addWidget(data_group)
 
-        # Visibility Panel
+
         self.visibility_panel = VisibilityPanel(self.scene_manager)
         left_layout.addWidget(self.visibility_panel)
 
-        # Properties Panel
+
         self.properties_panel = PropertiesPanel(self.scene_manager)
         left_layout.addWidget(self.properties_panel)
 
-        # Prediction Panel
         self.prediction_panel = PredictionPanel(self.scene_manager)
         left_layout.addWidget(self.prediction_panel)
 
-        # Marker Panel
+
         self.marker_panel = MarkerPanel(self.scene_manager)
         left_layout.addWidget(self.marker_panel)
 
-        left_layout.addStretch()  # Push controls upwards
+        left_layout.addStretch()
         
         splitter.addWidget(scroll_area)
 
-        # --- Right Panel (3D Viewer) ---
         self.viewer_frame = QFrame()
         viewer_layout = QVBoxLayout(self.viewer_frame)
         viewer_layout.setContentsMargins(0, 0, 0, 0)
@@ -149,26 +135,22 @@ class GNNViewerWidget(QWidget):
         viewer_layout.addWidget(self.plotter.interactor)
         splitter.addWidget(self.viewer_frame)
 
-        # Set initial splitter sizes
         splitter.setSizes([350, 1050])
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
 
     def _init_context_menu(self):
         """Initialize the right-click context menu."""
-        # Attached to self (the widget) for now
+
         self.context_menu = QMenu(self)
         self.context_menu.addAction("Reset Camera", self.reset_camera)
         self.context_menu.addSeparator()
         self.context_menu.addAction("Clear Loaded Units", lambda: self.clear_loaded_units(confirm=True))
 
-    # --- Helper to report status ---
     def show_message(self, msg: str):
         self.status_message.emit(msg)
-        # Fallback print if not connected
-        # print(f"Status: {msg}") 
 
-    # --- Action Methods / Slots ---
+
 
     def select_building_folder(self):
         """Opens a dialog to select the building folder."""
@@ -190,10 +172,8 @@ class GNNViewerWidget(QWidget):
         self.path_label.setText(f"Path: {self.current_building_path}")
         print(f"Set building folder: {self.current_building_path}")
 
-        # Clear existing scene before loading new unit list
         self.clear_loaded_units(confirm=False)
 
-        # Load available units from the new path
         self.load_units_from_folder(self.current_building_path)
 
     def load_units_from_folder(self, building_path: str):
@@ -306,7 +286,6 @@ class GNNViewerWidget(QWidget):
             self.show_message(msg)
             return False
 
-        # Add to scene and UI
         self.scene_manager.add_unit(unit)  
         self.visibility_panel.add_unit_checkbox(unit_id, f"Unit {unit_id}")
         self.properties_panel.update_unit_info(unit)  
@@ -363,4 +342,3 @@ class GNNViewerWidget(QWidget):
         print("Cleaning up MEP Generator...")
         if self.scene_manager.plotter:
             self.scene_manager.plotter.close()
-        # Additional cleanup if needed
