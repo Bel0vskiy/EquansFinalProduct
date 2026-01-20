@@ -18,19 +18,12 @@ class SceneManager:
         self.units: Dict[int, UnitData] = {}
         self.visible_units: Set[int] = set()
         self.object_categories: Dict[str, Dict[str, Any]] = {
-            # Define categories, visibility, and colors
             'ET': {'visible': True, 'color': 'blue'},
-            # Add other categories when needed, e.g.:
-            # 'CV_GKW': {'visible': True, 'color': 'red'},
-            # 'lucht': {'visible': True, 'color': 'green'},
-            # 'Riolering': {'visible': True, 'color': 'brown'},
-            # 'Sanitair': {'visible': True, 'color': 'orange'}
         }
-        # --- Highlight state ---
         self.highlighted_actor_name: Optional[str] = None
-        self.highlighted_actor_ref = None  # Store direct ref to actor
+        self.highlighted_actor_ref = None
         self.original_color: Optional[str] = None
-        self.highlight_color: str = 'yellow'  # Highlight color
+        self.highlight_color: str = 'yellow'
         # ------------------------
         self.marker_count = 0
         self.bounding_box_actor_name = "drawn_bounding_box"
@@ -39,9 +32,8 @@ class SceneManager:
         """Initialize the PyVista QtInteractor plotter."""
         if self.plotter is None:
             self.plotter = QtInteractor(parent_widget)
-            self.plotter.set_background('lightgray')  # Use light gray instead of white?
+            self.plotter.set_background('lightgray')
             self.plotter.add_axes()
-            # self.plotter.enable_anti_aliasing('fxaa') # FXAA is generally safe
             print("Plotter initialized.")
         return self.plotter
 
@@ -56,35 +48,31 @@ class SceneManager:
 
         print(f"Adding Unit {unit.id} to scene...")
         self.units[unit.id] = unit
-        self.visible_units.add(unit.id)  # Assume visible when added
-
-        # Add actors for the new unit
-        is_unit_visible = True  # Initially visible
+        self.visible_units.add(unit.id)
+        is_unit_visible = True
         try:
-            # Add main mesh actor
             actor = self.plotter.add_mesh(
                 unit.mesh,
-                color='darkgrey',  # Darker grey for room?
+                color='darkgrey',
                 style='wireframe',
-                opacity=0.2,  # More transparent?
+                opacity=0.2,
                 line_width=1,
                 name=f"unit_{unit.id}_mesh",
-                pickable=False  # Room mesh usually not pickable
+                pickable=False
             )
             actor.SetVisibility(is_unit_visible)
 
-            # Add object categories for this unit
+
             if unit.data and 'objects' in unit.data:
                 self._add_object_categories_for_unit(unit, is_unit_visible)
 
-            self.plotter.reset_camera()  # Adjust camera to fit new unit
+            self.plotter.reset_camera()
             self.plotter.render()
             print(f"Unit {unit.id} added and camera reset.")
 
         except Exception as e:
             print(f"Error adding unit {unit.id} actors: {e}")
             traceback.print_exc()
-            # Clean up if adding failed partially
             self.remove_unit(unit.id)
 
     def remove_unit(self, unit_id: int):
@@ -93,25 +81,22 @@ class SceneManager:
             return
 
         print(f"Removing Unit {unit_id}...")
-        # Remove actors associated with this unit
         actor_name_prefix = f"unit_{unit_id}_"
         actors_to_remove = [name for name in self.plotter.actors if name.startswith(actor_name_prefix)]
         for name in actors_to_remove:
-            self.plotter.remove_actor(name, render=False)  # Remove actor without immediate render
+            self.plotter.remove_actor(name, render=False)
 
-        # Remove from internal tracking
         del self.units[unit_id]
         self.visible_units.discard(unit_id)
 
-        # Reset highlight if the removed unit contained the highlighted object
         if self.highlighted_actor_name and self.highlighted_actor_name.startswith(actor_name_prefix):
             self.highlighted_actor_name = None
             self.highlighted_actor_ref = None
             self.original_color = None
 
-        self.plotter.render()  # Render after removing all actors for this unit
+        self.plotter.render()
         print(f"Unit {unit_id} removed.")
-        if self.units:  # Only reset camera if something is left
+        if self.units:
             self.plotter.reset_camera()
 
     def remove_all_units(self):
@@ -123,7 +108,7 @@ class SceneManager:
         self.highlighted_actor_ref = None
         self.original_color = None
         if self.plotter:
-            self.plotter.clear_actors()  # Efficiently remove all actors
+            self.plotter.clear_actors()
             self.plotter.render()
         print("All units removed.")
 
@@ -137,25 +122,22 @@ class SceneManager:
         for name, actor in self.plotter.actors.items():
             if name.startswith(actor_name_prefix):
                 unit_actors_found = True
-                # Check category visibility before showing object actors
-                is_object_actor = "_mesh" not in name  # Simple check if it's an object box
+                is_object_actor = "_mesh" not in name
                 should_be_visible = visible
                 if is_object_actor:
                     try:
-                        # Extract category name (assuming format unit_ID_Category_...)
                         category = name.split('_')[2]
                         if category in self.object_categories:
                             should_be_visible = visible and self.object_categories[category]['visible']
                     except IndexError:
-                        pass  # Should not happen if naming convention is followed
+                        pass
 
                 actor.SetVisibility(should_be_visible)
 
-                # Reset highlight if the now hidden actor was highlighted
                 if not should_be_visible and self.highlighted_actor_name == name:
                     self.highlighted_actor_name = None
                     self.highlighted_actor_ref = None
-                    self.original_color = None  # Color will be correct when re-shown
+                    self.original_color = None
 
         if unit_actors_found:
             if visible:
@@ -172,19 +154,17 @@ class SceneManager:
         print(f"Setting Category '{category}' visibility to {visible}")
 
         self.object_categories[category]['visible'] = visible
-        actor_name_suffix = f"_{category}_"  # Part of the actor name structure
+        actor_name_suffix = f"_{category}_"
 
         category_actors_found = False
         for name, actor in self.plotter.actors.items():
-            if actor_name_suffix in name:  # Check if actor belongs to this category
+            if actor_name_suffix in name:
                 category_actors_found = True
                 try:
-                    # Only change visibility if its unit is supposed to be visible
                     unit_id_str = name.split('_')[1]
                     unit_id = int(unit_id_str)
                     if unit_id in self.visible_units:
                         actor.SetVisibility(visible)
-                        # Reset highlight if the now hidden actor was highlighted
                         if not visible and self.highlighted_actor_name == name:
                             self.highlighted_actor_name = None
                             self.highlighted_actor_ref = None
@@ -207,8 +187,7 @@ class SceneManager:
 
             if category in unit.data['objects']:
                 objects = unit.data['objects'][category]
-                for i, obj in enumerate(objects):  # Use enumerate for unique fallback names
-                    # Ensure a unique name even if JSON name is missing or duplicated
+                for i, obj in enumerate(objects):
                     obj_name_json = obj.get('name')
                     obj_name_unique = obj_name_json if obj_name_json else f"obj_{i}"
                     actor_name = f"unit_{unit.id}_{category}_{obj_name_unique}"
@@ -218,13 +197,12 @@ class SceneManager:
                             min_coords = np.array(obj['min'], dtype=float)
                             max_coords = np.array(obj['max'], dtype=float)
 
-                            # Validate coordinates
                             if min_coords.shape != (3,) or max_coords.shape != (3,):
                                 print(f"Warning: Skipping object '{actor_name}': Invalid coordinate dimensions.")
                                 continue
 
                             size = max_coords - min_coords
-                            if np.any(size <= 1e-6):  # Use tolerance for size check
+                            if np.any(size <= 1e-6):
                                 print(f"Warning: Skipping object '{actor_name}' due to near-zero size: {size}")
                                 continue
 
@@ -234,11 +212,11 @@ class SceneManager:
                             actor = self.plotter.add_mesh(
                                 box,
                                 color=settings['color'],
-                                opacity=0.7,  # Slightly less transparent?
+                                opacity=0.7,
                                 name=actor_name,
-                                pickable=True  # Make object boxes pickable
+                                pickable=True
                             )
-                            # Set initial visibility based on both unit and category
+
                             actor.SetVisibility(is_unit_visible and is_category_visible)
                         except Exception as e:
                             print(f"Error creating box for '{actor_name}': {e}")
@@ -249,41 +227,32 @@ class SceneManager:
     def highlight_object(self, actor_name: Optional[str]):
         """Highlights the specified actor, resetting the previous one."""
         if not self.plotter: return
-
-        # --- Reset previous highlight ---
-        # Use stored reference if available and valid
         if self.highlighted_actor_ref and self.original_color:
             try:
-                # Check if actor still exists in plotter before accessing prop
                 if self.highlighted_actor_name in self.plotter.actors:
                     self.highlighted_actor_ref.prop.color = self.original_color
                 else:
-                    # Actor was removed, just clear state
                     pass
             except Exception as e:
                 print(f"Info: Could not reset color for previous actor {self.highlighted_actor_name}: {e}")
 
-        # Clear current highlight state regardless
         self.highlighted_actor_name = None
         self.highlighted_actor_ref = None
         self.original_color = None
         # --------------------------------
 
-        # --- Find and highlight the new actor (if provided) ---
         if actor_name:
             try:
                 actor = self.plotter.actors.get(actor_name)
                 if actor:
-                    # Check visibility before highlighting
                     if not actor.GetVisibility():
                         print(f"Info: Cannot highlight '{actor_name}', it is currently hidden.")
-                        self.plotter.render()  # Render to ensure previous highlight is reset
+                        self.plotter.render()
                         return
 
                     self.highlighted_actor_name = actor_name
                     self.highlighted_actor_ref = actor
                     if hasattr(actor, 'prop') and hasattr(actor.prop, 'color'):
-                        # Use pv.Color to handle potential color name/tuple/list issues
                         self.original_color = pv.Color(actor.prop.color)
                         actor.prop.color = self.highlight_color
                         print(f"Highlighted: {actor_name}")
@@ -296,13 +265,12 @@ class SceneManager:
                 traceback.print_exc()
         # -----------------------------------------
 
-        self.plotter.render()  # Update render after changing colors or just resetting
+        self.plotter.render()
 
     def add_marker_sphere(self, position: np.ndarray, color: str = 'red', radius: float = 10.0):
         """Adds a sphere marker to the scene at a given position."""
         if self.plotter is None:
             return
-        
         try:
             sphere = pv.Sphere(radius=radius, center=position)
             marker_name = f"marker_{self.marker_count}"
@@ -318,9 +286,6 @@ class SceneManager:
             return
         
         try:
-            # Shift label slightly so it doesn't overlap exactly with the center
-            # label_pos = position + np.array([0, 0, radius * 1.5]) 
-            
             marker_name = f"marker_label_{self.marker_count}"
             
             self.plotter.add_point_labels(
@@ -343,8 +308,6 @@ class SceneManager:
         """Removes all sphere markers from the scene."""
         if self.plotter is None:
             return
-        
-        # Find all actor names that start with 'marker_' (covers 'marker_label_' too)
         actors_to_remove = [name for name in self.plotter.actors if name.startswith("marker_")]
         
         if not actors_to_remove:
@@ -361,19 +324,6 @@ class SceneManager:
         """Draws a bounding box from 8 vertices."""
         if self.plotter is None:
             return
-
-        # Vertices must be in a specific order for faces to form correctly.
-        # This order matches the output of the get_bbox_corners function.
-        # 0: min_x, min_y, min_z
-        # 1: max_x, min_y, min_z
-        # 2: max_x, max_y, min_z
-        # 3: min_x, max_y, min_z
-        # 4: min_x, min_y, max_z
-        # 5: max_x, min_y, max_z
-        # 6: max_x, max_y, max_z
-        # 7: min_x, max_y, max_z
-        
-        # Define the 6 faces of the cube using the vertex indices
         faces = np.hstack([
             [4, 0, 1, 2, 3],  # Front face
             [4, 4, 5, 6, 7],  # Back face
@@ -384,8 +334,6 @@ class SceneManager:
         ])
 
         box_surface = pv.PolyData(vertices, faces=faces)
-
-        # Remove any previously drawn box without immediate rendering
         self.clear_bounding_box(render=False)
 
         self.plotter.add_mesh(

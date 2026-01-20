@@ -77,7 +77,6 @@ def ensure_bucket(token: str, bucket_key: str, policy: str = "temporary", region
 
 def s3_signed_upload(token: str, bucket_key: str, object_name: str, local_path: str, region: str = "US") -> Dict[str, Any]:
     """
-    Новый поток загрузки:
       1) GET /signeds3upload - Get url and upload key
       2) PUT - give headers from the response
       3) POST /signeds3upload - gives
@@ -110,7 +109,7 @@ def s3_signed_upload(token: str, bucket_key: str, object_name: str, local_path: 
         signed_url = first.get("url")
         headers_for_s3 = first.get("headers", {}) or {}
     else:
-        raise RuntimeError(f"Unsupported signed URL format: {type(first)}")
+        raise RuntimeError(f"Unsupported signed URL: {type(first)}")
 
     if not signed_url:
         raise RuntimeError("Empty signed URL in response")
@@ -135,16 +134,13 @@ def s3_signed_upload(token: str, bucket_key: str, object_name: str, local_path: 
         data=json.dumps(finalize_body), timeout=60
     )
     if r3.status_code not in (200, 201):
-        raise RuntimeError(f"POST signeds3upload failed: {r3.status_code} {r3.text}")
+        raise RuntimeError(f"POST signed s3 upload failed: {r3.status_code} {r3.text}")
     return r3.json()
 
 
 # ----------------- MODEL DERIVATIVE: RVT → IFC -----------------
 
 def submit_derivative_ifc(token: str, urn_b64: str, ifc_version: str = "ifc4"):
-    """
-    Поставить задачу перевода в IFC (ifc4 | ifc2x3).
-    """
     if ifc_version.lower() not in ("ifc4", "ifc2x3"):
         raise ValueError("Returned file not in .ifc4 or .ifc2x3")
 

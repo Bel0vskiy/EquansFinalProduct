@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import os
 import sys
 import time
@@ -9,7 +6,6 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-# Paths (leave as-is)
 RVT_ROOT = Path("rvt_files")
 IFC_ROOT = Path("ifc_files")
 
@@ -197,17 +193,17 @@ def flow_convert_single_simple() -> None:
     try:
         ok, code = run_convert_one_logged(rvt_to_ifc, in_rvt, out_ifc, manifest, log_path)
     except KeyboardInterrupt:
-        print("\n⛔ Stopped by user (Ctrl+C).")
+        print("\nStopped by user (Ctrl+C).")
         print(f"Log: {log_path}")
         return
 
     if ok:
-        print("✅ Done")
+        print("Done")
         print(f"IFC: {out_ifc}")
         print(f"Manifest: {manifest}")
         print(f"Log: {log_path}")
     else:
-        print(f"❌ Error (exit code {code})")
+        print(f"Error (exit code {code})")
         print(f"Log: {log_path}")
 
 
@@ -236,7 +232,7 @@ def flow_convert_folder_simple() -> None:
     out_dir = IFC_ROOT / folder.name
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\nFound {len(files)} files. Converting strictly one-by-one (sequential).")
+    print(f"\nFound {len(files)} files. Converting strictly one-by-one.")
     print(f"Output: {out_dir}\n")
 
     ok_count = 0
@@ -257,14 +253,14 @@ def flow_convert_folder_simple() -> None:
                 ok_count += 1
             else:
                 fail_count += 1
-                print(f"  ❌ exit code {code} (see {log_path})")
+                print(f"  exit code {code} (see {log_path})")
 
     except KeyboardInterrupt:
-        print("\n⛔ Stopped by user (Ctrl+C).")
+        print("\nStopped by user (Ctrl+C).")
         print(f"Output: {out_dir}")
         return
 
-    print(f"\nSummary: ✅ {ok_count} | ❌ {fail_count}")
+    print(f"\nSummary: {ok_count} | {fail_count}")
     print(f"Results: {out_dir}")
 
 
@@ -275,7 +271,7 @@ def main_simple() -> None:
         print(f"IFC: {IFC_ROOT}")
         print(f"Args: --region {REGION} --ifcver {IFCVER} --save-manifest (and --outfile)")
         print("1) Convert ONE file")
-        print("2) Convert a FOLDER (one-by-one, with logs)")
+        print("2) Convert a FOLDER")
         print("3) Exit")
 
         c = input("Choice: ").strip()
@@ -364,7 +360,7 @@ def main() -> None:
 
         idx = pick_from_list_curses(
             stdscr,
-            f"Pick a folder in {RVT_ROOT} (convert all)",
+            f"Pick a folder in {RVT_ROOT}",
             [p.name for p in folders],
             footer="↑/↓ Enter  Esc back",
         )
