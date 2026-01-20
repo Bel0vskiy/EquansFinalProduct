@@ -10,6 +10,19 @@ import argparse
 import glob
 from tqdm import tqdm
 import numpy as np # Import numpy for nan checks
+import platform
+
+# --- Device Configuration ---
+def get_device():
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        return torch.device('mps')
+    else:
+        return torch.device('cpu')
+
+device = get_device()
+print(f"Using device: {device}")
 
 # --- Configuration Loading ---
 def load_config():
@@ -118,40 +131,54 @@ class PreprocessedComponentDataset(Dataset):
         return data
 
 # --- Helper Function to Find Target Component ---
+# --- Helper Function to Find Target Components for Batch ---
 def get_target_info(data):
     """
-    Finds the target component by looking for the one with a non-NaN pose label.
-    Returns the index of the target component and a mask for its associated edges.
+    Finds all target components in the batch by looking for those with non-NaN pose labels.
+    Returns:
+    - target_comp_indices: Tensor containing the indices of all target component nodes.
+    - target_edge_mask: A boolean mask for all edges originating from these target components.
     """
     y_pose = data['component', 'candidate_placement', 'surface'].y_pose
     
     # Find the indices of edges with valid (non-NaN) pose labels
-    valid_pose_edge_indices = torch.where(~torch.isnan(y_pose).any(dim=1))[0]
-
-    if valid_pose_edge_indices.numel() == 0:
-        return None, None # No target component found in this graph
-
-    # Get the source node (component) index from the first valid edge
-    edge_index_src = data['component', 'candidate_placement', 'surface'].edge_index[0]
-    target_comp_idx = edge_index_src[valid_pose_edge_indices[0]].item()
-
-    # Create a mask for all edges originating from this target component
-    target_edge_mask = (edge_index_src == target_comp_idx)
+    # dim=1 check is to see if any coordinate (u or v) is non-NaN, meaning it's a target
+    valid_pose_edge_mask = ~torch.isnan(y_pose).any(dim=1)
     
-    return target_comp_idx, target_edge_mask
+     # If no valid pose edges are found, return None
+    if not valid_pose_edge_mask.any():
+        return None, None
+
+    # Get the source node (component) indices for these valid edges
+    edge_index_src = data['component', 'candidate_placement', 'surface'].edge_index[0]
+    
+    # Identify unique target component indices
+    # We filter edge_index_src by the valid pose mask to get source nodes of "target" edges
+    target_comp_indices = torch.unique(edge_index_src[valid_pose_edge_mask])
+
+    # Now, create a mask for ALL edges that originate from ANY of these target components
+    # This efficiently selects all candidate placement edges for all target components in the batch
+    # using broadcasting: (num_edges, 1) == (1, num_targets) -> (num_edges, num_targets) -> any(dim=1)
+    target_edge_mask = (edge_index_src.unsqueeze(1) == target_comp_indices.unsqueeze(0)).any(dim=1)
+    
+    return target_comp_indices, target_edge_mask
 
 # --- Training & Validation Loops ---
-def train_epoch(loader, model, optimizer, class_loss_fn, reg_loss_fn, alpha):
+def train_epoch(loader, model, optimizer, class_loss_fn, reg_loss_fn, alpha, device):
     model.train()
     total_loss = 0
     graphs_processed = 0
     
     for data in tqdm(loader, desc="Training"):
-        target_comp_idx, edge_mask = get_target_info(data)
+        data = data.to(device) # Move batch to device
+        target_comp_indices, edge_mask = get_target_info(data)
         
-        if target_comp_idx is None:
+        if target_comp_indices is None:
             continue
 
+            continue
+
+        # graphs_processed represents the number of batches, effectively
         graphs_processed += 1
         optimizer.zero_grad()
         
@@ -182,18 +209,19 @@ def train_epoch(loader, model, optimizer, class_loss_fn, reg_loss_fn, alpha):
 
     return total_loss / graphs_processed if graphs_processed > 0 else 0
 
-def validate(loader, model, class_loss_fn, reg_loss_fn, alpha):
+def validate(loader, model, class_loss_fn, reg_loss_fn, alpha, device):
     model.eval()
     total_loss, total_correct_surf, total_mae, num_target_comps = 0, 0, 0, 0
     
     with torch.no_grad():
         for data in tqdm(loader, desc="Validating"):
-            target_comp_idx, edge_mask = get_target_info(data)
+            data = data.to(device) # Move batch to device
+            target_comp_indices, edge_mask = get_target_info(data)
             
-            if target_comp_idx is None:
+            if target_comp_indices is None:
                 continue
 
-            num_target_comps += 1
+            num_target_comps += len(target_comp_indices)
             classification_logits, regression_output = model(data)
             
             comp_specific_logits = classification_logits[edge_mask]
@@ -201,11 +229,26 @@ def validate(loader, model, class_loss_fn, reg_loss_fn, alpha):
             
             class_loss = class_loss_fn(comp_specific_logits, comp_specific_y_surface)
 
-            pred_local_idx = torch.argmax(comp_specific_logits)
-            true_local_idx = torch.argmax(comp_specific_y_surface)
+            # --- Metrics Calculation (Batched) ---
+            # To calculate accuracy/MAE per component, we need to regroup the logits/labels by component.
+            # Using scatter or a loop over components. Given the small number of targets per batch, a loop is acceptable.
+            
+            # Map filtered edges back to their source component index for grouping
+            edge_index_src = data['component', 'candidate_placement', 'surface'].edge_index[0]
+            masked_src_indices = edge_index_src[edge_mask]
 
-            if pred_local_idx == true_local_idx:
-                total_correct_surf += 1
+            for comp_idx in target_comp_indices:
+                # Mask for the specific component within the batch-wide masked tensors
+                specific_comp_mask = (masked_src_indices == comp_idx)
+                
+                curr_logits = comp_specific_logits[specific_comp_mask]
+                curr_y_surface = comp_specific_y_surface[specific_comp_mask]
+
+                pred_local_idx = torch.argmax(curr_logits)
+                true_local_idx = torch.argmax(curr_y_surface)
+
+                if pred_local_idx == true_local_idx:
+                    total_correct_surf += 1
 
             true_edge_mask = (comp_specific_y_surface == 1)
             reg_loss = torch.tensor(0.0, device=class_loss.device)
@@ -264,8 +307,22 @@ def run_kfold_training(args):
             split_name='val_fold'
         )
 
-        train_loader = DataLoader(train_dataset, batch_size=training_config.get('batch_size', 1), shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=training_config.get('batch_size', 1))
+        # Data Loader Optimization: num_workers, pin_memory
+        train_loader = DataLoader(
+            train_dataset, 
+            batch_size=training_config.get('batch_size', 1), 
+            shuffle=True,
+            num_workers=4,
+            pin_memory=True,
+            persistent_workers=True
+        )
+        val_loader = DataLoader(
+            val_dataset, 
+            batch_size=training_config.get('batch_size', 1),
+            num_workers=4,
+            pin_memory=True,
+            persistent_workers=True
+        )
 
         print(f"Fold {fold_key}: Training dataset contains {len(train_dataset)} graphs.")
         print(f"Fold {fold_key}: Validation dataset contains {len(val_dataset)} graphs.")
@@ -280,11 +337,13 @@ def run_kfold_training(args):
         regression_loss_fn = nn.MSELoss()
         optimizer = optim.Adam(model.parameters(), lr=training_config['learning_rate'])
         
+        model = model.to(device) # Move model to device
+
         best_fold_val_loss = float('inf')
 
         for epoch in range(1, training_config['epochs'] + 1):
-            train_loss = train_epoch(train_loader, model, optimizer, classification_loss_fn, regression_loss_fn, training_config['alpha'])
-            val_loss, val_acc, val_mae = validate(val_loader, model, classification_loss_fn, regression_loss_fn, training_config['alpha'])
+            train_loss = train_epoch(train_loader, model, optimizer, classification_loss_fn, regression_loss_fn, training_config['alpha'], device)
+            val_loss, val_acc, val_mae = validate(val_loader, model, classification_loss_fn, regression_loss_fn, training_config['alpha'], device)
             
             tqdm.write(f"Fold {fold_key} - Epoch {epoch:03d}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}, Val MAE: {val_mae:.4f}")
 
@@ -312,8 +371,22 @@ def run_standard_train_val(args):
     train_dataset = PreprocessedComponentDataset(root_dir=args.graphs_dir, split_type='train_val', split_file_path=args.split_json, fold_key='train')
     val_dataset = PreprocessedComponentDataset(root_dir=args.graphs_dir, split_type='train_val', split_file_path=args.split_json, fold_key='validation')
 
-    train_loader = DataLoader(train_dataset, batch_size=training_config.get('batch_size', 1), shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=training_config.get('batch_size', 1))
+    # Data Loader Optimization: num_workers, pin_memory
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=training_config.get('batch_size', 1), 
+        shuffle=True,
+        num_workers=4,
+        pin_memory=True,
+        persistent_workers=True
+    )
+    val_loader = DataLoader(
+        val_dataset, 
+        batch_size=training_config.get('batch_size', 1),
+        num_workers=4,
+        pin_memory=True,
+        persistent_workers=True
+    )
 
     print(f"Training dataset contains {len(train_dataset)} graphs.")
     print(f"Validation dataset contains {len(val_dataset)} graphs.")
@@ -335,6 +408,8 @@ def run_standard_train_val(args):
     regression_loss_fn = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=training_config['learning_rate'])
 
+    model = model.to(device) # Move model to device
+
     if args.resume and os.path.exists(BEST_MODEL_PATH):
         model.load_state_dict(torch.load(BEST_MODEL_PATH))
         print(f"Loaded model weights from {BEST_MODEL_PATH} to resume training.")
@@ -346,8 +421,8 @@ def run_standard_train_val(args):
     best_val_loss = float('inf')
     
     for epoch in range(1, training_config['epochs'] + 1):
-        train_loss = train_epoch(train_loader, model, optimizer, classification_loss_fn, regression_loss_fn, training_config['alpha'])
-        val_loss, val_acc, val_mae = validate(val_loader, model, classification_loss_fn, regression_loss_fn, training_config['alpha'])
+        train_loss = train_epoch(train_loader, model, optimizer, classification_loss_fn, regression_loss_fn, training_config['alpha'], device)
+        val_loss, val_acc, val_mae = validate(val_loader, model, classification_loss_fn, regression_loss_fn, training_config['alpha'], device)
         
         print(f"Epoch {epoch:03d}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}, Val MAE: {val_mae:.4f}")
 
