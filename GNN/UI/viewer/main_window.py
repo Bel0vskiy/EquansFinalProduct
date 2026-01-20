@@ -1,3 +1,4 @@
+
 # main_window.py
 
 import sys
@@ -6,33 +7,33 @@ import json
 from pathlib import Path
 from typing import Dict, Optional
 
-import pyvista as pv  # Keep pyvista import for type hints if needed
-# from pyvistaqt import QtInteractor # Imported within SceneManager
-import numpy as np  # Used in panels/scene manager, maybe not directly here
+import pyvista as pv
+import numpy as np
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QSplitter, QLabel, QPushButton, QMenuBar, QMenu, QGroupBox,
-    QTextEdit, QComboBox, QMessageBox, QFileDialog, QStatusBar, QFrame,
-    QScrollArea
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+    QSplitter, QLabel, QPushButton, QGroupBox,
+    QTextEdit, QComboBox, QMessageBox, QFileDialog, QFrame,
+    QScrollArea, QMenu
 )
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction
 
 # Import the refactored classes
 from .unit_data import UnitData
 from .scene_manager import SceneManager
-from .unit_data import UnitData
-from .scene_manager import SceneManager
-from .ui_panels import PropertiesPanel, VisibilityPanel, MarkerPanel, BoundingBoxPanel, PredictionPanel
+from .ui_panels import PropertiesPanel, VisibilityPanel, MarkerPanel, PredictionPanel
 
 
-class AdvancedRoomViewer(QMainWindow):
-    """Main application window integrating all UI components."""
+class GNNViewerWidget(QWidget):
+    """
+    Main GNN Viewer component, refactored as a QWidget to be embedded in a main window.
+    """
+    # Signal to report status messages to the parent window
+    status_message = Signal(str)
 
     def __init__(self, default_data_path: Optional[str] = None):
         super().__init__()
-        self.setWindowTitle("Advanced 3D Room Viewer")
-        self.setGeometry(100, 100, 1400, 900)  # x, y, width, height
+        # Removed window title/geometry/status bar init as this is now a widget
 
         # Core components
         self.scene_manager = SceneManager()
@@ -41,26 +42,21 @@ class AdvancedRoomViewer(QMainWindow):
 
         # Build UI
         self._init_ui()
-        self._init_menu()
-        self._init_status_bar()
+        # Menu init removed - Parent window will handle menus
+        # Status bar init removed - Parent window will handle status
         self._init_context_menu()
 
-        # Load initial data path
-
-
-        print("Main window initialized.")
+        print("MEP Generator initialized.")
 
     def _init_ui(self):
         """Initialize the main UI layout and panels."""
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QHBoxLayout(central_widget)  # Layout for central widget
+        # Main layout for this widget
+        main_layout = QHBoxLayout(self) 
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
 
         # --- Left Panel ---
-        # This will be the content widget for the scroll area
         left_panel_content = QWidget()
         left_layout = QVBoxLayout(left_panel_content)  # Layout for the content
 
@@ -68,127 +64,109 @@ class AdvancedRoomViewer(QMainWindow):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setWidget(left_panel_content)
-        scroll_area.setMaximumWidth(350) # Set max width for the scroll area itself
+        scroll_area.setMinimumWidth(300)
 
-        # Building Selection Group
-        building_group = QGroupBox("Building Data Source")
-        building_layout = QVBoxLayout()
-        self.path_label = QLabel("Path: Not Selected")
+        # Data Source Group
+        data_group = QGroupBox("Data Source")
+        data_layout = QVBoxLayout()
+        data_layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Building Selection Row
+        building_row = QVBoxLayout()
+        building_row.setSpacing(2)
+        building_row.addWidget(QLabel("Building Folder:"))
+        self.path_label = QLabel("Not Selected")
+        self.path_label.setStyleSheet("color: gray; font-style: italic;")
         self.path_label.setWordWrap(True)
-        self.browse_btn = QPushButton("Select Building Folder...")
+        building_row.addWidget(self.path_label)
+        
+        self.browse_btn = QPushButton("Select Folder...")
         self.browse_btn.clicked.connect(self.select_building_folder)
-        building_layout.addWidget(QLabel("Current Building Folder:"))
-        building_layout.addWidget(self.path_label)
-        building_layout.addWidget(self.browse_btn)
-        building_group.setLayout(building_layout)
-        left_layout.addWidget(building_group)
-
-        # Unit Selection Group
-        unit_group = QGroupBox("Unit Selection")
-        unit_layout = QVBoxLayout()
+        building_row.addWidget(self.browse_btn)
+        
+        data_layout.addLayout(building_row)
+        
+        # Line Separator
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        data_layout.addWidget(line)
+        
+        # Unit Selection Row
+        unit_row = QVBoxLayout()
+        unit_row.setSpacing(2)
+        unit_row.addWidget(QLabel("Unit Selection:"))
         self.unit_combo = QComboBox()
-        self.load_unit_btn = QPushButton("Load Selected Unit")
-        self.load_all_btn = QPushButton("Load All Units")
-        self.remove_units_btn = QPushButton("Clear Loaded Units")
+        unit_row.addWidget(self.unit_combo)
+        
+        btns_layout = QHBoxLayout()
+        self.load_unit_btn = QPushButton("Load")
         self.load_unit_btn.clicked.connect(self.load_selected_unit)
-        self.load_all_btn.clicked.connect(self.load_all_units)
-        self.remove_units_btn.clicked.connect(lambda: self.clear_loaded_units(confirm=True))
-        unit_layout.addWidget(QLabel("Select Unit:"))
-        unit_layout.addWidget(self.unit_combo)
-        unit_layout.addWidget(self.load_unit_btn)
-        unit_layout.addWidget(self.load_all_btn)
-        unit_layout.addWidget(self.remove_units_btn)
-        unit_group.setLayout(unit_layout)
-        left_layout.addWidget(unit_group)
+        self.load_unit_btn.setProperty("class", "primary")
 
-        # Visibility Panel (Pass SceneManager)
+        self.load_all_btn = QPushButton("Load All")
+        self.load_all_btn.clicked.connect(self.load_all_units)
+        
+        self.remove_units_btn = QPushButton("Clear")
+        self.remove_units_btn.clicked.connect(lambda: self.clear_loaded_units(confirm=True))
+        self.remove_units_btn.setProperty("class", "danger")
+        
+        btns_layout.addWidget(self.load_unit_btn)
+        btns_layout.addWidget(self.load_all_btn)
+        btns_layout.addWidget(self.remove_units_btn)
+        unit_row.addLayout(btns_layout)
+        
+        data_layout.addLayout(unit_row)
+        
+        data_group.setLayout(data_layout)
+        left_layout.addWidget(data_group)
+
+        # Visibility Panel
         self.visibility_panel = VisibilityPanel(self.scene_manager)
         left_layout.addWidget(self.visibility_panel)
 
-        # Properties Panel (Pass SceneManager)
+        # Properties Panel
         self.properties_panel = PropertiesPanel(self.scene_manager)
         left_layout.addWidget(self.properties_panel)
 
-        # Marker Panel (Pass SceneManager)
-        self.marker_panel = MarkerPanel(self.scene_manager)
-        left_layout.addWidget(self.marker_panel)
-
-        # Bounding Box Panel (Pass SceneManager)
-        self.bounding_box_panel = BoundingBoxPanel(self.scene_manager)
-        left_layout.addWidget(self.bounding_box_panel)
-
-        # Prediction Panel (Pass SceneManager)
+        # Prediction Panel
         self.prediction_panel = PredictionPanel(self.scene_manager)
         left_layout.addWidget(self.prediction_panel)
 
-        left_layout.addStretch()  # Push controls towards the top
+        # Marker Panel
+        self.marker_panel = MarkerPanel(self.scene_manager)
+        left_layout.addWidget(self.marker_panel)
+
+        left_layout.addStretch()  # Push controls upwards
         
-        # Add the scroll area (which contains the left_panel_content) to the splitter
         splitter.addWidget(scroll_area)
 
         # --- Right Panel (3D Viewer) ---
-        # Use a QFrame for better embedding if needed, or directly QWidget
         self.viewer_frame = QFrame()
         viewer_layout = QVBoxLayout(self.viewer_frame)
-        viewer_layout.setContentsMargins(0, 0, 0, 0)  # Remove padding around plotter
-        # Initialize plotter via SceneManager, passing the frame/widget
+        viewer_layout.setContentsMargins(0, 0, 0, 0)
         self.plotter = self.scene_manager.initialize_plotter(self.viewer_frame)
-        viewer_layout.addWidget(self.plotter.interactor)  # Add the plotter's Qt widget
-        splitter.addWidget(self.viewer_frame)  # Add viewer frame to splitter
+        viewer_layout.addWidget(self.plotter.interactor)
+        splitter.addWidget(self.viewer_frame)
 
-        # Set initial splitter sizes (adjust as needed)
+        # Set initial splitter sizes
         splitter.setSizes([350, 1050])
-
-    def _init_menu(self):
-        """Initialize the main menu bar."""
-        menubar = self.menuBar()
-
-        # File Menu
-        file_menu = menubar.addMenu('&File')
-        browse_action = QAction("&Select Building Folder...", self)
-        browse_action.triggered.connect(self.select_building_folder)
-        file_menu.addAction(browse_action)
-        file_menu.addSeparator()
-        exit_action = QAction('E&xit', self)
-        exit_action.setShortcut(QKeySequence.StandardKey.Quit)  # Use standard key
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-
-        # View Menu
-        view_menu = menubar.addMenu('&View')
-        reset_camera_action = QAction('&Reset Camera', self)
-        reset_camera_action.triggered.connect(self.reset_camera)
-        view_menu.addAction(reset_camera_action)
-        # fit_action = QAction('&Fit to Screen', self) # Often same as reset
-        # fit_action.triggered.connect(self.fit_to_screen)
-        # view_menu.addAction(fit_action)
-
-        # Tools Menu
-        tools_menu = menubar.addMenu('&Tools')
-        clear_action = QAction('&Clear Loaded Units', self)
-        clear_action.triggered.connect(lambda: self.clear_loaded_units(confirm=True))
-        tools_menu.addAction(clear_action)
-
-        # Help Menu
-        help_menu = menubar.addMenu('&Help')
-        about_action = QAction('&About', self)
-        about_action.triggered.connect(self.show_about)
-        help_menu.addAction(about_action)
-
-    def _init_status_bar(self):
-        """Initialize the status bar."""
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Ready")
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
 
     def _init_context_menu(self):
         """Initialize the right-click context menu."""
-        # For simplicity, attached to the main window for now
+        # Attached to self (the widget) for now
         self.context_menu = QMenu(self)
         self.context_menu.addAction("Reset Camera", self.reset_camera)
-        # self.context_menu.addAction("Fit to Screen", self.fit_to_screen)
         self.context_menu.addSeparator()
         self.context_menu.addAction("Clear Loaded Units", lambda: self.clear_loaded_units(confirm=True))
+
+    # --- Helper to report status ---
+    def show_message(self, msg: str):
+        self.status_message.emit(msg)
+        # Fallback print if not connected
+        # print(f"Status: {msg}") 
 
     # --- Action Methods / Slots ---
 
@@ -213,7 +191,7 @@ class AdvancedRoomViewer(QMainWindow):
         print(f"Set building folder: {self.current_building_path}")
 
         # Clear existing scene before loading new unit list
-        self.clear_loaded_units(confirm=False)  # Clear without prompt
+        self.clear_loaded_units(confirm=False)
 
         # Load available units from the new path
         self.load_units_from_folder(self.current_building_path)
@@ -221,11 +199,10 @@ class AdvancedRoomViewer(QMainWindow):
     def load_units_from_folder(self, building_path: str):
         """Scans the folder for valid unit subdirectories and populates the dropdown."""
         self.unit_combo.clear()
-        self.units_data.clear()  # Clear the map of available units
+        self.units_data.clear()
         print(f"Scanning for units in: {building_path}")
 
         try:
-            # Use Pathlib for better path handling
             path_obj = Path(building_path)
             if not path_obj.is_dir():
                 raise FileNotFoundError("Path is not a directory")
@@ -234,7 +211,7 @@ class AdvancedRoomViewer(QMainWindow):
         except Exception as e:
             msg = f"Error scanning directory:\n{building_path}\n\n{e}"
             QMessageBox.critical(self, "Directory Scan Error", msg)
-            self.status_bar.showMessage("Error scanning directory.")
+            self.show_message("Error scanning directory.")
             print(f"Error scanning: {e}")
             return
 
@@ -248,15 +225,15 @@ class AdvancedRoomViewer(QMainWindow):
             if mesh_file.exists() and json_file.exists():
                 try:
                     unit_id = int(unit_name.split('_')[1])
-                    self.units_data[unit_id] = str(unit_dir.resolve())  # Store full path
-                    self.unit_combo.addItem(unit_name)  # Add name to dropdown
+                    self.units_data[unit_id] = str(unit_dir.resolve())
+                    self.unit_combo.addItem(unit_name)
                     found_count += 1
                 except (ValueError, IndexError):
                     print(f"Warning: Could not parse ID from directory name '{unit_name}'")
             else:
                 print(f"Skipping {unit_name}: Missing mesh.obj or data.json")
 
-        self.status_bar.showMessage(f"Found {found_count} valid units in {path_obj.name}")
+        self.show_message(f"Found {found_count} valid units in {path_obj.name}")
         if found_count == 0:
             QMessageBox.information(self, "No Units", f"No valid 'unit_*' folders found in:\n{building_path}")
 
@@ -264,18 +241,16 @@ class AdvancedRoomViewer(QMainWindow):
         """Loads the unit currently selected in the combo box."""
         unit_name = self.unit_combo.currentText()
         if not unit_name:
-            self.status_bar.showMessage("No unit selected.")
+            self.show_message("No unit selected.")
             return
 
         try:
             unit_id = int(unit_name.split('_')[1])
             if unit_id in self.scene_manager.units:
-                self.status_bar.showMessage(f"Unit {unit_id} is already loaded.")
-                # Optionally focus on it or bring to front if needed
+                self.show_message(f"Unit {unit_id} is already loaded.")
             elif unit_id in self.units_data:
                 self.load_unit(unit_id)
             else:
-                # Should not happen if combo box is populated correctly
                 QMessageBox.warning(self, "Error", f"Unit '{unit_name}' data path not found.")
         except (ValueError, IndexError):
             QMessageBox.warning(self, "Error", f"Cannot parse ID from '{unit_name}'")
@@ -286,24 +261,23 @@ class AdvancedRoomViewer(QMainWindow):
             QMessageBox.information(self, "No Units", "No units available to load. Please select a data folder.")
             return
 
-        self.status_bar.showMessage("Loading all units...")
-        QApplication.processEvents()  # Update UI
+        self.show_message("Loading all units...")
+        QApplication.processEvents()
 
         loaded_count = 0
         for i in range(self.unit_combo.count()):
             unit_name = self.unit_combo.itemText(i)
             try:
                 unit_id = int(unit_name.split('_')[1])
-                # Check if already loaded before attempting to load again
                 if unit_id not in self.scene_manager.units:
-                    if self.load_unit(unit_id):  # Check return value of load_unit
+                    if self.load_unit(unit_id):
                         loaded_count += 1
             except (ValueError, IndexError):
                 print(f"Skipping invalid unit name in combo box: {unit_name}")
 
-        self.status_bar.showMessage(f"Finished loading. Total units in scene: {len(self.scene_manager.units)}")
+        self.show_message(f"Finished loading. Total units in scene: {len(self.scene_manager.units)}")
         if self.scene_manager.units:
-            self.scene_manager.plotter.reset_camera()  # Fit camera after loading all
+            self.scene_manager.plotter.reset_camera()
 
     def load_unit(self, unit_id: int) -> bool:
         """Loads a single unit by ID. Returns True on success, False on failure."""
@@ -312,40 +286,40 @@ class AdvancedRoomViewer(QMainWindow):
             return False
         if unit_id in self.scene_manager.units:
             print(f"Info: Unit {unit_id} already loaded.")
-            return True  # Consider already loaded as success
+            return True
 
         unit_path = self.units_data[unit_id]
         unit = UnitData(unit_id, unit_path)
 
         print(f"Attempting to load Unit {unit_id} from {unit_path}...")
-        self.status_bar.showMessage(f"Loading Unit {unit_id}...")
+        self.show_message(f"Loading Unit {unit_id}...")
         QApplication.processEvents()
 
         if not unit.load_data():
             msg = f"Failed to load data.json for unit {unit_id}"
             QMessageBox.warning(self, "Load Error", msg)
-            self.status_bar.showMessage(msg)
+            self.show_message(msg)
             return False
         if not unit.load_mesh():
             msg = f"Failed to load mesh.obj for unit {unit_id}"
             QMessageBox.warning(self, "Load Error", msg)
-            self.status_bar.showMessage(msg)
+            self.show_message(msg)
             return False
 
         # Add to scene and UI
-        self.scene_manager.add_unit(unit)  # This triggers scene update and camera reset
+        self.scene_manager.add_unit(unit)  
         self.visibility_panel.add_unit_checkbox(unit_id, f"Unit {unit_id}")
-        self.properties_panel.update_unit_info(unit)  # Show info for the new unit
-        self.prediction_panel.update_targets(unit_path) # Update prediction targets
+        self.properties_panel.update_unit_info(unit)  
+        self.prediction_panel.update_targets(unit_path)
 
-        self.status_bar.showMessage(f"Loaded Unit {unit_id}")
+        self.show_message(f"Loaded Unit {unit_id}")
         print(f"Successfully loaded Unit {unit_id}")
         return True
 
     def clear_loaded_units(self, confirm=True):
         """Clears all currently loaded units from the scene."""
-        if not self.scene_manager.units:  # Check if there's anything to clear
-            self.status_bar.showMessage("Scene is already empty.")
+        if not self.scene_manager.units:
+            self.show_message("Scene is already empty.")
             return
 
         do_clear = False
@@ -357,27 +331,22 @@ class AdvancedRoomViewer(QMainWindow):
             if reply == QMessageBox.StandardButton.Yes:
                 do_clear = True
         else:
-            do_clear = True  # Clear without asking (e.g., when changing folder)
+            do_clear = True
 
         if do_clear:
             print("Clearing loaded units...")
-            self.scene_manager.remove_all_units()  # Clears SceneManager state and plotter actors
-            self.visibility_panel.clear_unit_checkboxes()  # Clear UI checkboxes
-            self.properties_panel.update_unit_info(None)  # Clear properties display
-            self.status_bar.showMessage("Cleared loaded units.")
+            self.scene_manager.remove_all_units()
+            self.visibility_panel.clear_unit_checkboxes()
+            self.properties_panel.update_unit_info(None)
+            self.show_message("Cleared loaded units.")
             print("Cleared loaded units.")
 
     def reset_camera(self):
         """Resets the PyVista camera."""
         if self.scene_manager.plotter:
             print("Resetting camera...")
-            # self.scene_manager.plotter.camera_position = 'iso' # Can be too far out
             self.scene_manager.plotter.reset_camera()
             self.scene_manager.plotter.render()
-
-    def fit_to_screen(self):
-        """Fits the current scene contents to the screen (same as reset)."""
-        self.reset_camera()
 
     def show_about(self):
         """Shows the About dialog."""
@@ -387,27 +356,11 @@ class AdvancedRoomViewer(QMainWindow):
 
     def contextMenuEvent(self, event):
         """Shows the context menu on right-click."""
-        # Optionally check if click is within plotter area
-        # widget = self.childAt(event.pos())
-        # if widget is self.plotter.interactor: # Check if click is on plotter
         self.context_menu.exec(event.globalPos())
 
-    def closeEvent(self, event):
-        """Handles window close event."""
-        print("Closing application...")
-        # Optional: Add confirmation dialog?
-        # reply = QMessageBox.question(self, 'Confirm Exit',
-        #                              "Are you sure you want to exit?",
-        #                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        #                              QMessageBox.StandardButton.No)
-        # if reply == QMessageBox.StandardButton.Yes:
-        #     if self.scene_manager.plotter:
-        #         self.scene_manager.plotter.close() # Close plotter window cleanly
-        #     event.accept() # Proceed with closing
-        # else:
-        #     event.ignore() # Cancel closing
-
-        # Simpler close without confirmation:
+    def cleanup(self):
+        """Explicit cleanup method to handle resource disposal."""
+        print("Cleaning up MEP Generator...")
         if self.scene_manager.plotter:
-            self.scene_manager.plotter.close()  # Close plotter window cleanly
-        event.accept()
+            self.scene_manager.plotter.close()
+        # Additional cleanup if needed
