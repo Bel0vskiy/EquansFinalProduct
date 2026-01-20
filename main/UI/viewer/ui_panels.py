@@ -3,7 +3,7 @@ import numpy as np
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGroupBox, QLabel, QListWidget, QTextEdit,
     QCheckBox, QPushButton, QListWidgetItem, QHBoxLayout, QLineEdit,
-    QComboBox, QMessageBox
+    QComboBox, QMessageBox, QApplication
 )
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtCore import Qt, QLocale
@@ -13,6 +13,7 @@ from typing import Optional, Dict
 # Assuming scene_manager.py is in the same directory or accessible
 from .scene_manager import SceneManager
 from .unit_data import UnitData # Import UnitData for type hinting
+from Model import evaluate # Import GNN evaluation logic
 
 class PropertiesPanel(QWidget):
     """Information properties panel to display unit and object details."""
@@ -25,34 +26,76 @@ class PropertiesPanel(QWidget):
 
     def _init_ui(self):
         """Initialize the UI elements of the panel."""
-        layout = QVBoxLayout(self) # Apply layout directly to self
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0) # Compact main layout
 
-        # --- Unit Information Group ---
+        # --- Unit Information Group (Collapsible) ---
         self.unit_info_group = QGroupBox("Unit Information")
-        unit_layout = QVBoxLayout()
+        self.unit_info_layout = QVBoxLayout()
+        
         self.unit_id_label = QLabel("Unit ID: None")
         self.unit_bounds_label = QLabel("Bounds: None")
         self.unit_objects_label = QLabel("Objects: None")
-        unit_layout.addWidget(self.unit_id_label)
-        unit_layout.addWidget(self.unit_bounds_label)
-        unit_layout.addWidget(self.unit_objects_label)
-        self.unit_info_group.setLayout(unit_layout)
+        
+        self.unit_info_layout.addWidget(self.unit_id_label)
+        self.unit_info_layout.addWidget(self.unit_bounds_label)
+        self.unit_info_layout.addWidget(self.unit_objects_label)
+        self.unit_info_group.setLayout(self.unit_info_layout)
+        
+        # Wrapper for collapse
+        self.unit_info_toggle = QPushButton("Hide Unit Information")
+        self.unit_info_toggle.setCheckable(True)
+        self.unit_info_toggle.setChecked(False) # Not checked = Expanded (logic below)
+        self.unit_info_toggle.clicked.connect(lambda: self.toggle_group(self.unit_info_group, self.unit_info_toggle))
+        self.unit_info_toggle.setProperty("class", "panel_toggle")
+        
+        layout.addWidget(self.unit_info_toggle)
         layout.addWidget(self.unit_info_group)
 
-        # --- Object Details Group ---
+        # --- Object Details Group (Collapsible) ---
         self.object_details_group = QGroupBox("Object Details")
         object_layout = QVBoxLayout()
+        
         self.object_list = QListWidget()
+        self.object_list.setMaximumHeight(100) # Limit list height
         self.object_list.itemClicked.connect(self.on_object_selected)
         object_layout.addWidget(self.object_list)
+        
         self.object_details_text = QTextEdit()
-        self.object_details_text.setMaximumHeight(150) # Limit height
-        self.object_details_text.setReadOnly(True) # Make read-only
+        self.object_details_text.setMaximumHeight(100) # Limit details height
+        self.object_details_text.setReadOnly(True)
         object_layout.addWidget(self.object_details_text)
+        
         self.object_details_group.setLayout(object_layout)
+        
+        # Wrapper for collapse
+        self.object_details_toggle = QPushButton("Show Object Details")
+        self.object_details_toggle.setCheckable(True)
+        self.object_details_toggle.setChecked(True) # Checked = Collapsed (logic below)
+        self.object_details_toggle.clicked.connect(lambda: self.toggle_group(self.object_details_group, self.object_details_toggle))
+        self.object_details_toggle.setProperty("class", "panel_toggle")
+        
+        # Start collapsed
+        self.object_details_group.setVisible(False) 
+        
+        layout.addWidget(self.object_details_toggle)
         layout.addWidget(self.object_details_group)
 
-        layout.addStretch() # Push content upwards
+        layout.addStretch()
+
+    def toggle_group(self, group_box: QGroupBox, button: QPushButton):
+        """Toggles visibility of a group box."""
+        is_visible = group_box.isVisible()
+        group_box.setVisible(not is_visible)
+        
+        # Update button text based on new state
+        base_text = group_box.title()
+        if not is_visible: # It was hidden, now shown
+            button.setText(f"Hide {base_text}")
+        else:
+            button.setText(f"Show {base_text}")
+
+    # ... (rest of methods like update_unit_info keep same logic, just ensure widget refs exist)
 
     def update_unit_info(self, unit: Optional[UnitData]):
         """Update the panel based on the selected unit (or None to clear)."""
@@ -143,16 +186,24 @@ class VisibilityPanel(QWidget):
     def _init_ui(self):
         """Initialize the UI elements of the panel."""
         layout = QVBoxLayout(self) # Apply layout directly
+        layout.setContentsMargins(0, 5, 0, 5)
 
         # --- Unit Visibility Group ---
+        # Use ScrollArea or just compact layout? For few units, VBox is fine.
+        # Let's use a group box with a tight layout.
         self.units_group = QGroupBox("Unit Visibility")
-        self.units_layout = QVBoxLayout() # We'll add checkboxes here later
+        self.units_layout = QVBoxLayout()
+        self.units_layout.setContentsMargins(5, 5, 5, 5)
+        self.units_layout.setSpacing(2)
         self.units_group.setLayout(self.units_layout)
         layout.addWidget(self.units_group)
 
         # --- Object Category Visibility Group ---
         self.categories_group = QGroupBox("Object Categories")
         categories_layout = QVBoxLayout()
+        categories_layout.setContentsMargins(5, 5, 5, 5)
+        categories_layout.setSpacing(2)
+        
         for category, settings in self.scene_manager.object_categories.items():
             checkbox = QCheckBox(category)
             checkbox.setChecked(settings.get('visible', True)) # Default to True if key missing
@@ -166,16 +217,12 @@ class VisibilityPanel(QWidget):
         # --- Scene Controls Group ---
         self.scene_group = QGroupBox("Scene Controls")
         scene_layout = QVBoxLayout()
+        scene_layout.setContentsMargins(5, 5, 5, 5)
+        
         self.reset_view_btn = QPushButton("Reset View")
         self.reset_view_btn.clicked.connect(self.reset_view)
         scene_layout.addWidget(self.reset_view_btn)
-        # self.fit_to_screen_btn = QPushButton("Fit to Screen") # Often redundant
-        # self.fit_to_screen_btn.clicked.connect(self.fit_to_screen)
-        # scene_layout.addWidget(self.fit_to_screen_btn)
-        # Add Toggle Axes button if needed
-        # self.toggle_axes_btn = QPushButton("Toggle Axes")
-        # self.toggle_axes_btn.clicked.connect(self.toggle_axes)
-        # scene_layout.addWidget(self.toggle_axes_btn)
+        
         self.scene_group.setLayout(scene_layout)
         layout.addWidget(self.scene_group)
 
@@ -278,8 +325,12 @@ class MarkerPanel(QWidget):
         buttons_layout = QHBoxLayout()
         self.place_btn = QPushButton("Place Marker")
         self.place_btn.clicked.connect(self._on_place_marker)
+        self.place_btn.setProperty("class", "primary")
+        
         self.clear_btn = QPushButton("Clear All Markers")
         self.clear_btn.clicked.connect(self._on_clear_markers)
+        self.clear_btn.setProperty("class", "danger")
+        
         buttons_layout.addWidget(self.place_btn)
         buttons_layout.addWidget(self.clear_btn)
         group_layout.addLayout(buttons_layout)
@@ -307,6 +358,7 @@ class MarkerPanel(QWidget):
             
             self.scene_manager.add_marker_sphere(position, color, radius)
             
+            
         except ValueError:
             QMessageBox.warning(self, "Invalid Input", 
                                 "Please enter coordinates in the format 'x, y, z' and a valid radius.")
@@ -318,89 +370,148 @@ class MarkerPanel(QWidget):
         self.scene_manager.clear_all_markers()
 
 
-class BoundingBoxPanel(QWidget):
-    """Panel for drawing a bounding box from a list of coordinates."""
+
+
+class PredictionPanel(QWidget):
+    """Panel for running GNN predictions on the selected unit."""
 
     def __init__(self, scene_manager: SceneManager):
         super().__init__()
         self.scene_manager = scene_manager
+        self.current_unit_path: Optional[str] = None
+        self.target_indices: Dict[str, int] = {} # "Name (Index)" -> Index
         self._init_ui()
 
     def _init_ui(self):
-        """Initialize the UI elements of the panel."""
         layout = QVBoxLayout(self)
-
-        group = QGroupBox("Draw Bounding Box")
+        
+        group = QGroupBox("GNN Prediction (wcd enkelvoudig)")
         group_layout = QVBoxLayout()
+        
+        # Target Selection
+        target_label = QLabel("Select Target Object:")
+        target_label.setStyleSheet("font-weight: bold;")
+        group_layout.addWidget(target_label)
+        self.target_combo = QComboBox()
+        self.target_combo.setStyleSheet("padding: 5px;")
+        group_layout.addWidget(self.target_combo)
+        
+        group_layout.addSpacing(10)
+        
+        # Predict Button
+        btns_layout = QHBoxLayout()
+        self.predict_btn = QPushButton("Predict Position")
+        self.predict_btn.clicked.connect(self._on_predict)
+        self.predict_btn.setProperty("class", "primary") # Use theme class
+        btns_layout.addWidget(self.predict_btn)
+        
+        # Clear Button
+        self.clear_btn = QPushButton("Clear Prediction")
+        self.clear_btn.clicked.connect(self._on_clear_prediction)
+        self.clear_btn.setProperty("class", "danger") # Use theme class
+        btns_layout.addWidget(self.clear_btn)
+        
+        group_layout.addLayout(btns_layout)
+        
+        group_layout.addSpacing(10)
 
-        # Coordinate Input
-        self.coords_input = QTextEdit()
-        self.coords_input.setPlaceholderText(
-            "Paste 8 corner coordinates, e.g.,\n"
-            "[x1, y1, z1],\n"
-            "[x2, y2, z2],\n"
-            "..."
-        )
-        self.coords_input.setMinimumHeight(150) # Taller input area
-        group_layout.addWidget(QLabel("8 Bounding Box Corners:"))
-        group_layout.addWidget(self.coords_input)
-
-        # Color Selection
-        color_layout = QHBoxLayout()
-        self.color_combo = QComboBox()
-        self.color_combo.addItems(['Cyan', 'Magenta', 'Green', 'Blue', 'Red'])
-        color_layout.addWidget(QLabel("Color:"))
-        color_layout.addWidget(self.color_combo)
-        group_layout.addLayout(color_layout)
-
-        # Action Buttons
-        buttons_layout = QHBoxLayout()
-        self.draw_btn = QPushButton("Draw Box")
-        self.draw_btn.clicked.connect(self._on_draw_box)
-        self.clear_btn = QPushButton("Clear Box")
-        self.clear_btn.clicked.connect(self._on_clear_box)
-        buttons_layout.addWidget(self.draw_btn)
-        buttons_layout.addWidget(self.clear_btn)
-        group_layout.addLayout(buttons_layout)
-
+        # Results Display
+        result_label = QLabel("Results:")
+        result_label.setStyleSheet("font-weight: bold;")
+        group_layout.addWidget(result_label)
+        self.result_text = QTextEdit()
+        self.result_text.setReadOnly(True)
+        self.result_text.setMaximumHeight(120)
+        self.result_text.setPlaceholderText("Prediction results will appear here...")
+        group_layout.addWidget(self.result_text)
+        
         group.setLayout(group_layout)
         layout.addWidget(group)
+        layout.addStretch()
 
-    def _on_draw_box(self):
-        """Handle the 'Draw Box' button click."""
+    def update_targets(self, unit_path: str):
+        """Populates the target dropdown for the new unit."""
+        self.current_unit_path = unit_path
+        self.target_combo.clear()
+        self.result_text.clear()
+        
+        if not unit_path:
+            return
+            
         try:
-            text = self.coords_input.toPlainText()
+            # Get targets from evaluate module (which reads existing wcd enkelvoudig)
+            # targets is dict {index: name_str}
+            targets = evaluate.get_available_targets(unit_path, "wcd enkelvoudig")
             
-            # --- Robust Parsing ---
-            # 1. Remove brackets and newlines
-            cleaned_text = text.replace('[', '').replace(']', '').replace('\n', '')
-            # 2. Split by comma
-            parts = cleaned_text.split(',')
-            # 3. Filter out empty strings that result from trailing commas etc.
-            nums = [p.strip() for p in parts if p.strip()]
-
-            if len(nums) != 24: # 8 corners * 3 coords
-                raise ValueError(f"Expected 24 numbers (8 vertices of 3 coordinates), but found {len(nums)}.")
-
-            # Convert to a numpy array and reshape
-            vertices = np.array([float(n) for n in nums]).reshape(8, 3)
-            
-            color = self.color_combo.currentText().lower()
-
-            # Call SceneManager to draw the box
-            self.scene_manager.draw_bounding_box(vertices, color=color)
-
-        except ValueError as ve:
-            QMessageBox.warning(self, "Invalid Input", 
-                                f"Could not parse coordinates. Please ensure you provide 8 vertices.\n\nError: {ve}")
+            self.target_indices.clear()
+            for idx, name_display in targets.items():
+                self.target_combo.addItem(name_display)
+                self.target_indices[name_display] = idx
+                
+            if not targets:
+                self.target_combo.addItem("No valid targets found")
+                self.predict_btn.setEnabled(False)
+            else:
+                self.predict_btn.setEnabled(True)
+                
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to list targets: {e}")
+            self.predict_btn.setEnabled(False)
 
-    def _on_clear_box(self):
-        """Handle the 'Clear Box' button click."""
-        self.scene_manager.clear_bounding_box()
+    def _on_predict(self):
+        """Runs prediction for the selected target."""
+        if not self.current_unit_path:
+            return
+            
+        target_name = self.target_combo.currentText()
+        if target_name not in self.target_indices:
+            return
+            
+        target_idx = self.target_indices[target_name]
+        
+        self.result_text.setText("Running prediction...")
+        QApplication.processEvents()
+        
+        # Call evaluate.predict_component
+        result = evaluate.predict_component(self.current_unit_path, target_idx)
+        
+        if result['status'] == 'error':
+            self.result_text.setText(f"Error: {result.get('message')}")
+            QMessageBox.critical(self, "Prediction Error", result.get('message'))
+            return
+            
+        # Success
+        pred_mm = np.array(result['pred_pos_mm'])
+        true_mm = np.array(result['true_pos_mm'])
+        error = result['error_mm']
+        
+        # Display Text
+        msg = (f"Target Index: {target_idx}\n"
+               f"Error: {error:.1f} mm\n"
+               f"True Surface: {result['true_surface_id']}\n"
+               f"Pred Surface: {result['pred_surface_id']}\n"
+               f"True Pos: {true_mm[0]:.0f}, {true_mm[1]:.0f}, {true_mm[2]:.0f}\n"
+               f"Pred Pos: {pred_mm[0]:.0f}, {pred_mm[1]:.0f}, {pred_mm[2]:.0f}")
+        self.result_text.setText(msg)
+        
+        # Visual markers
+        # Clear old prediction markers if any? Or keep accumulating? User might want to compare.
+        # Maybe clear just "pred" markers? existing MarkerPanel clears *all* "marker_*" actors.
+        # We can use a specific prefix to manage them if needed, but for now simple markers.
+        
+        # Add True Marker (Green)
+        self.scene_manager.add_marker_sphere(true_mm, color='green', radius=40.0)
+        self.scene_manager.add_marker_label(true_mm, "True Position", color='green')
+        
+        # Add Pred Marker (Red/Orange)
+        self.scene_manager.add_marker_sphere(pred_mm, color='orange', radius=40.0)
+        self.scene_manager.add_marker_label(pred_mm, "Predicted Position", color='orange')
+        
+        # Force render
+        if self.scene_manager.plotter:
+            self.scene_manager.plotter.render()
 
-    # def toggle_axes(self): # Implement if needed
-    #     if self.scene_manager.plotter:
-    #         # Example: toggle the axes widget
-    #         pass
+    def _on_clear_prediction(self):
+        """Clears all prediction markers and text."""
+        self.scene_manager.clear_all_markers()
+        self.result_text.clear()

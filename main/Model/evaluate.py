@@ -7,8 +7,15 @@ from torch_geometric.loader import DataLoader
 from typing import Optional, Tuple, List, Dict, Any
 
 # Internal imports# Internal imports
-from model import ComponentPlacementGNN
-from graph_builder import build_room_graph
+# Internal imports
+try:
+    # Try relative import (when imported as module from UI)
+    from .model import ComponentPlacementGNN
+    from .graph_builder import build_room_graph
+except ImportError:
+    # Fallback to absolute import (when run as script)
+    from model import ComponentPlacementGNN
+    from graph_builder import build_room_graph
 
 # --- CONFIGURATION ---
 TARGET_COMPONENT_NAME = "wcd enkelvoudig"
@@ -52,8 +59,8 @@ def load_real_bounds(unit_path_norm: str) -> Tuple[np.ndarray, np.ndarray]:
     # Assumption: structure is .../DataNormalized/unit_X
     # We want: .../Data/unit_X/data.json
     
-    # 1. Replace 'DataNormalized' with 'Data'
-    path_real = unit_path_norm.replace("DataNormalized", "Data")
+    # 1. Replace 'DataNormalized' with 'DataOriginal'
+    path_real = unit_path_norm.replace("DataNormalized", "DataOriginal")
     
     # 2. Append 'data.json'
     json_path = os.path.join(path_real, "data.json")
@@ -270,6 +277,106 @@ def evaluate_graph(model, data, unmasked_comp_x=None, room_min=None, room_max=No
 
     ground_truth = get_ground_truth(data, prediction['edge_mask'])
     print_results(unit_name, target_comp_idx, prediction, ground_truth, data, unmasked_comp_x, room_min, room_max)
+
+# --- API FOR UI INTEGRATION ---
+
+def get_available_targets(unit_path_real: str, target_name: str = TARGET_COMPONENT_NAME) -> Dict[int, str]:
+    """
+    Returns a dictionary of {index: name} for all instances of target_name in the unit.
+    This allows the UI to populate a dropdown.
+    """
+    # Map real path to normalized path to build the graph
+    unit_path_norm = unit_path_real.replace("DataOriginal", "DataNormalized")
+    
+    # We attempt to build the graph just to get component names
+    norm_graph = build_room_graph(unit_path_norm)
+    if norm_graph is None:
+        return {}
+        
+    comp_names = norm_graph.meta.get('component_names', [])
+    targets = {}
+    for i, name in enumerate(comp_names):
+        if name == target_name:
+            targets[i] = f"{name} (Index {i})"
+            
+    return targets
+
+def predict_component(unit_path_real: str, target_idx: int) -> Dict[str, Any]:
+    """
+    Runs prediction for a specific component index in a unit.
+    Returns:
+        {
+            'true_pos_mm': [x, y, z],
+            'pred_pos_mm': [x, y, z],
+            'error_mm': float,
+            'target_idx': int,
+            'status': 'ok' | 'error'
+        }
+    """
+    script_dir = os.path.dirname(__file__)
+    try:
+        # Load model 
+        model, config = load_model(script_dir)
+        model.eval()
+        
+        unit_path_norm = unit_path_real.replace("DataOriginal", "DataNormalized")
+        norm_graph = build_room_graph(unit_path_norm)
+        
+        if norm_graph is None:
+            return {'status': 'error', 'message': 'Could not build graph'}
+            
+        room_min, room_max = load_real_bounds(unit_path_norm)
+        
+        # Apply mask
+        masked_graph = apply_mask_to_graph(norm_graph, target_idx)
+        # Wrap in batch
+        data = next(iter(DataLoader([masked_graph], batch_size=1)))
+        
+        # Get raw prediction
+        if not hasattr(data, 'meta'):
+            data.meta = norm_graph.meta
+            data.meta['masked_component_idx'] = target_idx # update mask idx
+            
+        prediction = get_model_prediction(model, data, target_idx)
+        if prediction is None:
+             return {'status': 'error', 'message': 'Model produced no prediction (Isolated Node?)'}
+             
+        ground_truth = get_ground_truth(data, prediction['edge_mask'])
+        
+        # Denormalize
+        norm_pred_feat = data['surface'].x[prediction['global_surf_idx']]
+        norm_true_feat = data['surface'].x[ground_truth['global_surf_idx']]
+        
+        norm_pred_xyz = get_xyz_from_uv(
+            prediction['coords'], 
+            norm_pred_feat[0:3].cpu().numpy(), 
+            norm_pred_feat[3:6].cpu().numpy()
+        )
+        norm_true_xyz = get_xyz_from_uv(
+            ground_truth['coords'], 
+            norm_true_feat[0:3].cpu().numpy(), 
+            norm_true_feat[3:6].cpu().numpy()
+        )
+        
+        pred_xyz_mm = global_denormalize(norm_pred_xyz, room_min, room_max)
+        true_xyz_mm = global_denormalize(norm_true_xyz, room_min, room_max)
+        
+        dist = np.linalg.norm(pred_xyz_mm - true_xyz_mm)
+        
+        return {
+            'status': 'ok',
+            'target_idx': target_idx,
+            'true_pos_mm': true_xyz_mm.tolist(),
+            'pred_pos_mm': pred_xyz_mm.tolist(),
+            'error_mm': float(dist),
+            'true_surface_id': int(ground_truth['global_surf_idx']),
+            'pred_surface_id': int(prediction['global_surf_idx'])
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {'status': 'error', 'message': str(e)}
 
 # --- EXECUTION MODES ---
 

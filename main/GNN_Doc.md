@@ -105,17 +105,48 @@ Make sure that you are using a unit that has at least one target component.
 
 ---
 
-## 4. `GUI/main_UI.py` (User Interface)
+## 4. `UI/main_UI.py` (User Interface)
 
 ### Purpose
 
-This script launches the graphical user interface (GUI) for interacting with the GNN model. It provides a visual way to load models, input data, and visualize predictions.
+This script launches the graphical user interface (GUI) for visually interacting with the data and the GNN model. It allows you to:
+- Browse and load specific buildings and units.
+- Visualize the 3D room geometry and objects.
+- Run the GNN model to predict component positions directly in the viewer.
+- Compare the predicted position with the ground truth using visual markers.
 
 ### How to Run
 
-The script should be run from the `GNN/` directory.
+1.  Open your terminal in the `GNN/` directory.
+2.  Run the following command:
+    ```bash
+    python UI/main_UI.py
+    ```
 
-**Command:**
-```bash
-python UI/main_UI.py
-```
+### User Guide
+
+#### 1. Loading Data
+*   **Select Building Folder**: On the left panel, click "Select Building Folder...". Navigate to and select the root directory of your building data (e.g., `EquansFinalProduct/EquansFinalProduct`). This directory should contain subfolders named `unit_XXXX`.
+*   **Select Unit**: Once the building folder is set, the "Select Unit" dropdown will populate. Choose a unit from the list.
+*   **Load Unit**: Click "Load Selected Unit" to visualize the room. You can also use "Load All Units" to see multiple rooms or "Clear Loaded Units" to reset the scene.
+
+#### 2. 3D Visualization Controls
+The main window displays the 3D interactive scene.
+*   **Rotate**: Left-click and drag.
+*   **Pan**: Shift + Left-click and drag (or Middle-click and drag).
+*   **Zoom**: Mouse wheel scroll (or Right-click and drag).
+*   **Reset View**: Use the "Reset View" button in the "Scene Controls" panel or the View menu to reset the camera.
+
+#### 3. Data Visibility & Inspection
+*   **Visibility Panel**: Toggle the checkboxes to show/hide specific units or object categories (e.g., "ET" for electrical).
+*   **Object Details**: Click on any object in the "Object Details" list to highlight it in yellow in the 3D view and see its properties (dimensions, coordinates).
+
+#### 4. GNN Prediction (New Feature)
+Use the **"GNN Prediction (wcd enkelvoudig)"** panel to run the model:
+1.  **Select Target Object**: Choose a specific target instance (e.g., a socket) from the dropdown list.
+2.  **Predict Position**: Click the button to run the GNN inference for that target.
+    *   **Green Sphere**: Indicates the **True Position** (Ground Truth).
+    *   **Orange Sphere**: Indicates the **Predicted Position** by the GNN.
+    *   **Labels**: Text labels ("True Position", "Predicted Position") identify the markers.
+    *   **Results Text**: Displays the Error (in mm) and detailed coordinates in the text box.
+3.  **Clear Prediction**: Click this button to remove the prediction markers and reset the selection, allowing you to choose a different target or clear the view.
