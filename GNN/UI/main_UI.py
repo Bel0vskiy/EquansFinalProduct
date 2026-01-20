@@ -8,6 +8,10 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 Main file to run latest version of UI
 """
 
+# Add GNN root to path to allow importing Model
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 # Import the main window class
 from viewer.main_window import AdvancedRoomViewer
 

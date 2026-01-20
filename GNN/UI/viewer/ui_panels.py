@@ -3,7 +3,7 @@ import numpy as np
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGroupBox, QLabel, QListWidget, QTextEdit,
     QCheckBox, QPushButton, QListWidgetItem, QHBoxLayout, QLineEdit,
-    QComboBox, QMessageBox
+    QComboBox, QMessageBox, QApplication
 )
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtCore import Qt, QLocale
@@ -13,6 +13,7 @@ from typing import Optional, Dict
 # Assuming scene_manager.py is in the same directory or accessible
 from .scene_manager import SceneManager
 from .unit_data import UnitData # Import UnitData for type hinting
+from Model import evaluate # Import GNN evaluation logic
 
 class PropertiesPanel(QWidget):
     """Information properties panel to display unit and object details."""
@@ -404,3 +405,135 @@ class BoundingBoxPanel(QWidget):
     #     if self.scene_manager.plotter:
     #         # Example: toggle the axes widget
     #         pass
+
+class PredictionPanel(QWidget):
+    """Panel for running GNN predictions on the selected unit."""
+
+    def __init__(self, scene_manager: SceneManager):
+        super().__init__()
+        self.scene_manager = scene_manager
+        self.current_unit_path: Optional[str] = None
+        self.target_indices: Dict[str, int] = {} # "Name (Index)" -> Index
+        self._init_ui()
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        
+        group = QGroupBox("GNN Prediction (wcd enkelvoudig)")
+        group_layout = QVBoxLayout()
+        
+        # Target Selection
+        group_layout.addWidget(QLabel("Select Target Object:"))
+        self.target_combo = QComboBox()
+        group_layout.addWidget(self.target_combo)
+        
+        # Predict Button
+        btns_layout = QHBoxLayout()
+        self.predict_btn = QPushButton("Predict Position")
+        self.predict_btn.clicked.connect(self._on_predict)
+        btns_layout.addWidget(self.predict_btn)
+        
+        # Clear Button
+        self.clear_btn = QPushButton("Clear Prediction")
+        self.clear_btn.clicked.connect(self._on_clear_prediction)
+        btns_layout.addWidget(self.clear_btn)
+        
+        group_layout.addLayout(btns_layout)
+        
+        # Results Display
+        self.result_text = QTextEdit()
+        self.result_text.setReadOnly(True)
+        self.result_text.setMaximumHeight(120)
+        self.result_text.setPlaceholderText("Prediction results will appear here...")
+        group_layout.addWidget(self.result_text)
+        
+        group.setLayout(group_layout)
+        layout.addWidget(group)
+        layout.addStretch()
+
+    def update_targets(self, unit_path: str):
+        """Populates the target dropdown for the new unit."""
+        self.current_unit_path = unit_path
+        self.target_combo.clear()
+        self.result_text.clear()
+        
+        if not unit_path:
+            return
+            
+        try:
+            # Get targets from evaluate module (which reads existing wcd enkelvoudig)
+            # targets is dict {index: name_str}
+            targets = evaluate.get_available_targets(unit_path, "wcd enkelvoudig")
+            
+            self.target_indices.clear()
+            for idx, name_display in targets.items():
+                self.target_combo.addItem(name_display)
+                self.target_indices[name_display] = idx
+                
+            if not targets:
+                self.target_combo.addItem("No valid targets found")
+                self.predict_btn.setEnabled(False)
+            else:
+                self.predict_btn.setEnabled(True)
+                
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to list targets: {e}")
+            self.predict_btn.setEnabled(False)
+
+    def _on_predict(self):
+        """Runs prediction for the selected target."""
+        if not self.current_unit_path:
+            return
+            
+        target_name = self.target_combo.currentText()
+        if target_name not in self.target_indices:
+            return
+            
+        target_idx = self.target_indices[target_name]
+        
+        self.result_text.setText("Running prediction...")
+        QApplication.processEvents()
+        
+        # Call evaluate.predict_component
+        result = evaluate.predict_component(self.current_unit_path, target_idx)
+        
+        if result['status'] == 'error':
+            self.result_text.setText(f"Error: {result.get('message')}")
+            QMessageBox.critical(self, "Prediction Error", result.get('message'))
+            return
+            
+        # Success
+        pred_mm = np.array(result['pred_pos_mm'])
+        true_mm = np.array(result['true_pos_mm'])
+        error = result['error_mm']
+        
+        # Display Text
+        msg = (f"Target Index: {target_idx}\n"
+               f"Error: {error:.1f} mm\n"
+               f"True Surface: {result['true_surface_id']}\n"
+               f"Pred Surface: {result['pred_surface_id']}\n"
+               f"True Pos: {true_mm[0]:.0f}, {true_mm[1]:.0f}, {true_mm[2]:.0f}\n"
+               f"Pred Pos: {pred_mm[0]:.0f}, {pred_mm[1]:.0f}, {pred_mm[2]:.0f}")
+        self.result_text.setText(msg)
+        
+        # Visual markers
+        # Clear old prediction markers if any? Or keep accumulating? User might want to compare.
+        # Maybe clear just "pred" markers? existing MarkerPanel clears *all* "marker_*" actors.
+        # We can use a specific prefix to manage them if needed, but for now simple markers.
+        
+        # Add True Marker (Green)
+        self.scene_manager.add_marker_sphere(true_mm, color='green', radius=40.0)
+        self.scene_manager.add_marker_label(true_mm, "True Position", color='green')
+        
+        # Add Pred Marker (Red/Orange)
+        self.scene_manager.add_marker_sphere(pred_mm, color='orange', radius=40.0)
+        self.scene_manager.add_marker_label(pred_mm, "Predicted Position", color='orange')
+        
+        # Force render
+        if self.scene_manager.plotter:
+            self.scene_manager.plotter.render()
+
+    def _on_clear_prediction(self):
+        """Clears all prediction markers and text."""
+        self.scene_manager.clear_all_markers()
+        self.result_text.clear()

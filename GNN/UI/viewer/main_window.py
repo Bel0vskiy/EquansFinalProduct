@@ -21,7 +21,9 @@ from PySide6.QtGui import QAction, QKeySequence
 # Import the refactored classes
 from .unit_data import UnitData
 from .scene_manager import SceneManager
-from .ui_panels import PropertiesPanel, VisibilityPanel, MarkerPanel, BoundingBoxPanel
+from .unit_data import UnitData
+from .scene_manager import SceneManager
+from .ui_panels import PropertiesPanel, VisibilityPanel, MarkerPanel, BoundingBoxPanel, PredictionPanel
 
 
 class AdvancedRoomViewer(QMainWindow):
@@ -114,6 +116,10 @@ class AdvancedRoomViewer(QMainWindow):
         # Bounding Box Panel (Pass SceneManager)
         self.bounding_box_panel = BoundingBoxPanel(self.scene_manager)
         left_layout.addWidget(self.bounding_box_panel)
+
+        # Prediction Panel (Pass SceneManager)
+        self.prediction_panel = PredictionPanel(self.scene_manager)
+        left_layout.addWidget(self.prediction_panel)
 
         left_layout.addStretch()  # Push controls towards the top
         
@@ -330,6 +336,7 @@ class AdvancedRoomViewer(QMainWindow):
         self.scene_manager.add_unit(unit)  # This triggers scene update and camera reset
         self.visibility_panel.add_unit_checkbox(unit_id, f"Unit {unit_id}")
         self.properties_panel.update_unit_info(unit)  # Show info for the new unit
+        self.prediction_panel.update_targets(unit_path) # Update prediction targets
 
         self.status_bar.showMessage(f"Loaded Unit {unit_id}")
         print(f"Successfully loaded Unit {unit_id}")

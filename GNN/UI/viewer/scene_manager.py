@@ -312,12 +312,39 @@ class SceneManager:
         except Exception as e:
             print(f"Error adding marker sphere: {e}")
 
+    def add_marker_label(self, position: np.ndarray, text: str, color: str = 'black'):
+        """Adds a text label at the given position."""
+        if self.plotter is None:
+            return
+        
+        try:
+            # Shift label slightly so it doesn't overlap exactly with the center
+            # label_pos = position + np.array([0, 0, radius * 1.5]) 
+            
+            marker_name = f"marker_label_{self.marker_count}"
+            
+            self.plotter.add_point_labels(
+                [position], 
+                [text],
+                point_size=0,
+                name=marker_name,
+                always_visible=True,
+                show_points=False,
+                text_color=color,
+                shape_opacity=0.5
+            )
+            self.marker_count += 1
+            print(f"Added label '{text}' at {position}")
+        except Exception as e:
+            print(f"Error adding marker label: {e}")
+            traceback.print_exc()
+
     def clear_all_markers(self):
         """Removes all sphere markers from the scene."""
         if self.plotter is None:
             return
         
-        # Find all actor names that start with 'marker_'
+        # Find all actor names that start with 'marker_' (covers 'marker_label_' too)
         actors_to_remove = [name for name in self.plotter.actors if name.startswith("marker_")]
         
         if not actors_to_remove:
