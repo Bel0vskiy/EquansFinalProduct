@@ -2,25 +2,20 @@ import sys
 import traceback
 import os
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QStackedWidget, QWidget, 
-    QVBoxLayout, QMessageBox, QStatusBar, QToolBar, QLabel
+    QApplication, QMainWindow, QStackedWidget, QWidget,
+    QVBoxLayout, QHBoxLayout, QMessageBox, QStatusBar, QLabel,
+    QPushButton, QButtonGroup
 )
-from PySide6.QtGui import QAction, QKeySequence, QIcon
-from PySide6.QtCore import Qt
 
 """
 Main file to run latest version of UI with Landing Page and Multi-Model Support
 """
 
-# Add GNN root to path to allow importing Model
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Import Widgets
-from viewer.intro_window import IntroWidget
 from viewer.main_window import GNNViewerWidget
 from viewer.knn_window import KNNViewerWidget
 
-# --- MODERN DARK THEME QSS ---
 DARK_STYLESHEET = """
 /* Global */
 QMainWindow, QDialog, QWidget {
@@ -183,6 +178,37 @@ QScrollBar::handle:vertical {
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
 }
+QPushButton[mode="toggle"] {
+    background-color: #2b2b2b;
+    border: 1px solid #555555;
+    color: #cfcfcf;
+    padding: 6px 10px;
+    min-height: 24px;
+}
+
+QPushButton[mode="toggle"]:checked {
+    background-color: #708090;
+    border-color: #778899;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+QPushButton[side="left"] {
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+}
+
+QPushButton[side="right"] {
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+QLabel {
+    background: transparent;
+}
+QGroupBox::title {
+    background: transparent; /* или оставь как было, если нравится "mask" */
+}
 """
 
 class CombinedMainWindow(QMainWindow):
@@ -195,90 +221,74 @@ class CombinedMainWindow(QMainWindow):
         self.setGeometry(100, 100, 1400, 900)
 
         self._init_ui()
-        self._init_menu()
-        self._init_toolbar()
 
     def _init_ui(self):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
 
-        # Stacked Widget for Pages
+        root = QWidget()
+        root_layout = QVBoxLayout(root)
+        root_layout.setContentsMargins(10, 10, 10, 10)
+        root_layout.setSpacing(8)
+        self.setCentralWidget(root)
+
+        toggle_bar = QWidget()
+        toggle_layout = QHBoxLayout(toggle_bar)
+        toggle_layout.setContentsMargins(0, 0, 0, 0)
+        toggle_layout.setSpacing(2)
+
+        self.btn_knn = QPushButton("KNN")
+        self.btn_gnn = QPushButton("GNN")
+
+        for b in (self.btn_knn, self.btn_gnn):
+            b.setCheckable(True)
+
+        self.btn_knn.setProperty("mode", "toggle")
+        self.btn_gnn.setProperty("mode", "toggle")
+
+        self.btn_knn.setProperty("side", "left")
+        self.btn_gnn.setProperty("side", "right")
+
+        self.mode_group = QButtonGroup(self)
+        self.mode_group.setExclusive(True)
+        self.mode_group.addButton(self.btn_knn)
+        self.mode_group.addButton(self.btn_gnn)
+
+        toggle_layout.addStretch(1)
+        toggle_layout.addWidget(self.btn_knn)
+        toggle_layout.addWidget(self.btn_gnn)
+        toggle_layout.addStretch(1)
+
+        root_layout.addWidget(toggle_bar)
+
         self.stack = QStackedWidget()
-        self.setCentralWidget(self.stack)
+        root_layout.addWidget(self.stack, 1)
 
-        # 1. Intro Page
-        self.intro_page = IntroWidget()
-        self.intro_page.request_gnn_mode.connect(self.show_gnn_page)
-        self.intro_page.request_knn_mode.connect(self.show_knn_page)
-        self.stack.addWidget(self.intro_page)
-
-        # 2. GNN Viewer Page
         self.gnn_page = GNNViewerWidget()
         self.gnn_page.status_message.connect(self.update_status)
         self.stack.addWidget(self.gnn_page)
-        
-        # 3. KNN Generator Page
+
         self.knn_page = KNNViewerWidget()
         self.knn_page.status_message.connect(self.update_status)
         self.stack.addWidget(self.knn_page)
 
-    def _init_menu(self):
-        menubar = self.menuBar()
+        self.btn_gnn.setChecked(True)
+        self.stack.setCurrentWidget(self.gnn_page)
+        self.lbl_mode = None  # toolbar label больше не нужен
+        self.status_bar.showMessage("GNN Generator Ready.")
 
-        # File Menu
-        file_menu = menubar.addMenu('&File')
-        
-        home_action = QAction('&Home', self)
-        home_action.setShortcut(QKeySequence("Ctrl+H"))
-        home_action.triggered.connect(self.show_home_page)
-        file_menu.addAction(home_action)
-        
-        file_menu.addSeparator()
-        
-        exit_action = QAction('E&xit', self)
-        exit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-
-        # View Menu (Common)
-        view_menu = menubar.addMenu('&View')
-        reset_cam_action = QAction('&Reset Camera', self)
-        reset_cam_action.triggered.connect(self.propagate_reset_camera)
-        view_menu.addAction(reset_cam_action)
-
-        # Help
-        help_menu = menubar.addMenu('&Help')
-        about_action = QAction('&About', self)
-        about_action.triggered.connect(self.show_about)
-        help_menu.addAction(about_action)
-
-    def _init_toolbar(self):
-        toolbar = QToolBar("Navigation")
-        self.addToolBar(toolbar)
-        
-        home_btn = QAction("Home", self)
-        home_btn.triggered.connect(self.show_home_page)
-        toolbar.addAction(home_btn)
-        
-        toolbar.addSeparator()
-        
-        self.lbl_mode = QLabel("  Mode: Selection  ")
-        toolbar.addWidget(self.lbl_mode)
-
-    def show_home_page(self):
-        self.stack.setCurrentWidget(self.intro_page)
-        self.lbl_mode.setText("  Mode: Selection  ")
-        self.status_bar.showMessage("Select a model to start.")
+        self.btn_gnn.clicked.connect(self.show_gnn_page)
+        self.btn_knn.clicked.connect(self.show_knn_page)
 
     def show_gnn_page(self):
         self.stack.setCurrentWidget(self.gnn_page)
-        self.lbl_mode.setText("  Mode: GNN Generator  ")
+        self.btn_gnn.setChecked(True)
         self.status_bar.showMessage("GNN Generator Ready.")
 
     def show_knn_page(self):
         self.stack.setCurrentWidget(self.knn_page)
-        self.lbl_mode.setText("  Mode: KNN Generator  ")
+        self.btn_knn.setChecked(True)
         self.status_bar.showMessage("KNN Generator Ready.")
 
     def update_status(self, msg: str):
@@ -300,7 +310,6 @@ class CombinedMainWindow(QMainWindow):
                           "- KNN-based placement on manual rooms")
 
     def closeEvent(self, event):
-        # Cleanup child widgets
         if hasattr(self.gnn_page, 'cleanup'):
             self.gnn_page.cleanup()
         if hasattr(self.knn_page, 'cleanup'):
