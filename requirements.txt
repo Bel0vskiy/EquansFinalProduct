@@ -13,3 +13,6 @@ pillow>=9.0.0
 requests>=2.25.0
 torch
 torch-geometric
+tqdm
+opencv-python
+segmentation-models-pytorch
