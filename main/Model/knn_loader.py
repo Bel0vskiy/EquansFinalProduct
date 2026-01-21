@@ -4,9 +4,6 @@ import joblib
 import pandas as pd
 from typing import Tuple
 
-# Ensure we can import from the 'app' directory for the placers
-# Assuming this file is in GNN/Model/
-# And 'app' is in the root parent of GNN
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if project_root not in sys.path:
     sys.path.append(project_root)
@@ -15,18 +12,10 @@ try:
     from app.knn_lamp_placer import KnnLampPlacer
     from app.knn_socket_placer import KnnSocketPlacer
 except ImportError:
-    # Fallback if running from a different context where app isn't immediately found
-    # You might need to adjust this depending on how you run the script
     print("Warning: Could not import placers from 'app'. Ensure project root is in PYTHONPATH.")
-    # Define dummy classes or re-implement if necessary? 
-    # For now, let's assume imports work with the sys.path hack.
     pass
 
 class KnnLoader:
-    """
-    Singleton-like class to load and cache KNN models and data.
-    Replaces app/initialiser.py functionality without Streamlit.
-    """
     _instance = None
     
     def __init__(self):
@@ -63,10 +52,6 @@ class KnnLoader:
         return self.socket_count_model
 
     def load_placer(self, k: int = 7, use_count_in_knn: bool = True) -> 'KnnLampPlacer':
-        # Always reload or cache? The original code cached resource. 
-        # But here 'k' can change. The placer has a fit method.
-        # Original: load_placer(k, ...) -> new instance -> fit(df).
-        # We can cache the DF to speed up re-fitting.
         
         df = self._load_combined_df()
         
@@ -77,7 +62,6 @@ class KnnLoader:
     def load_socket_placer(self, k: int = 7, use_count_in_knn: bool = True) -> 'KnnSocketPlacer':
         df = self._load_combined_df()
         
-        # Socket specific filtering
         if "component_type" in df.columns:
             df_sockets = df[df["component_type"].str.lower().eq("socket")].copy()
         else:
@@ -89,7 +73,6 @@ class KnnLoader:
         return placer
 
     def _load_combined_df(self) -> pd.DataFrame:
-        # Cache the dataframe loading slightly?
         if hasattr(self, '_cached_df'):
             return self._cached_df
             
