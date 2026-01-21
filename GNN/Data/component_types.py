@@ -2,9 +2,6 @@ import os
 import csv
 from typing import List, Dict
 
-"""
-Utilities to build the component type vocabulary from CSV files.
-"""
 
 
 def _read_component_csv(csv_path: str) -> List[str]:
@@ -28,13 +25,11 @@ def build_component_types(data_analysis_dir: str) -> List[str]:
         os.path.join(data_analysis_dir, "opvang_components.csv"),
         os.path.join(data_analysis_dir, "rotterdam_components.csv"),
     ]
-    #print(f"Component CSV files: {files}")
     all_names: List[str] = []
     for p in files:
         names = _read_component_csv(p)
         #print(f"Found {len(names)} components in {os.path.basename(p)}")
         all_names.extend(names)
-    # unique, stable order
     seen: Dict[str, bool] = {}
     unique: List[str] = []
     for n in all_names:
