@@ -10,7 +10,7 @@ import ifcopenshell.geom
 from ifcopenshell.util.placement import get_local_placement
 
 
-ifc_folder = "/Users/d1feds/PycharmProjects/ExperimentingProject1/Raw_Data/ifc_files"
+ifc_folder = "ifc_files"
 OUT_PREFIX    = "room_list_all"
 
 
