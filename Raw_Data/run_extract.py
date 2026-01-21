@@ -1,6 +1,3 @@
-# run_extract_v26_locked.py
-# Запуск: python run_extract_v26_locked.py
-
 import csv
 import json
 import math
@@ -13,7 +10,7 @@ import ifcopenshell.geom
 from ifcopenshell.util.placement import get_local_placement
 
 
-ifc_folder = "/Users/d1feds/PycharmProjects/ExperimentingProject1/Raw_Data/ifc_files"
+ifc_folder = "ifc_files"
 OUT_PREFIX    = "room_list_all"
 
 
@@ -139,11 +136,11 @@ def score_scale(space_union, dev_union):
 
 def classify(el):
     text = " ".join([
-        s(getattr(el, "Name", "")),
-        s(getattr(el, "ObjectType", "")),
-        s(getattr(el, "PredefinedType", "")),
-        s(getattr(el, "Tag", "")),
-        s(getattr(el, "Description", "")),
+        string_verify_not_none(getattr(el, "Name", "")),
+        string_verify_not_none(getattr(el, "ObjectType", "")),
+        string_verify_not_none(getattr(el, "PredefinedType", "")),
+        string_verify_not_none(getattr(el, "Tag", "")),
+        string_verify_not_none(getattr(el, "Description", "")),
     ]).lower()
 
     is_socket = any(k in text for k in SOCKET_KEYWORDS)
@@ -178,12 +175,12 @@ def extract_devices(ifc, scale):
                 pt = ((a+d)/2, (b+e)/2, (c+f)/2)
 
             rec = {
-                "id": s(getattr(el, "GlobalId", "")),
+                "id": string_verify_not_none(getattr(el, "GlobalId", "")),
                 "ifc_type": el.is_a(),
-                "name": s(getattr(el, "Name", "")),
-                "object_type": s(getattr(el, "ObjectType", "")),
-                "predefined_type": s(getattr(el, "PredefinedType", "")),
-                "tag": s(getattr(el, "Tag", "")),
+                "name": string_verify_not_none(getattr(el, "Name", "")),
+                "object_type": string_verify_not_none(getattr(el, "ObjectType", "")),
+                "predefined_type": string_verify_not_none(getattr(el, "PredefinedType", "")),
+                "tag": string_verify_not_none(getattr(el, "Tag", "")),
                 "x": float(pt[0]), "y": float(pt[1]), "z": float(pt[2]),
             }
             pts_all.append((rec["x"], rec["y"], rec["z"]))
@@ -215,8 +212,8 @@ def extract_spaces_raw(ifc, scale):
             continue
 
         spaces.append({
-            "id": s(getattr(sp, "GlobalId", "")),
-            "name": s(getattr(sp, "Name", "")),
+            "id": string_verify_not_none(getattr(sp, "GlobalId", "")),
+            "name": string_verify_not_none(getattr(sp, "Name", "")),
             "bbox_min": [minx, miny, minz],
             "bbox_max": [maxx, maxy, maxz],
             "length": dx,

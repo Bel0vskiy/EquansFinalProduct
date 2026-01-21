@@ -1,2 +1,3 @@
-CLIENT_ID     = "AY2AeSUTh2FlF13f3tKMS0j6xhzAGXBk4hVckfmW1BioPONd"
-CLIENT_SECRET = "imgeAOBvOB4pTObPaTGdIhTrEn4m4aMQhAdHJyA4cUDRby03bln200IgKq2AL5RX"
+CLIENT_ID     = ""
+CLIENT_SECRET = ""
+# use your own credentials to APS Autodesk Platform Services and create an application there it is free
