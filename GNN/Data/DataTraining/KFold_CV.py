@@ -4,10 +4,7 @@ import random
 import sys
 from math import ceil
 
-"""
-Splits a component index JSON into k folds (without train/validation distinction).
-Each fold contains the per-building list of units.
-"""
+
 
 def build_kfold_splits(input_json_path, k=5, seed=None):
 
@@ -27,26 +24,21 @@ def build_kfold_splits(input_json_path, k=5, seed=None):
         if not units:
             continue
 
-        # Shuffle units for randomness
         shuffled = units.copy()
         random.shuffle(shuffled)
 
         fold_size = ceil(len(shuffled) / k)
 
-        # Distribute units across folds
         for i in range(k):
             start = i * fold_size
             end = start + fold_size
             subset = shuffled[start:end]
             folds[f"fold_{i+1}"].setdefault(building, []).extend(subset)
 
-    # Build output JSON
     output_data = {
         "component": component,
         "folds": folds
     }
-
-    # Save to file
     base_dir = os.path.dirname(input_json_path)
     base_name = os.path.splitext(os.path.basename(input_json_path))[0]
     clean_name = base_name.replace("_index", "")
@@ -56,12 +48,12 @@ def build_kfold_splits(input_json_path, k=5, seed=None):
         json.dump(output_data, f, indent=2)
 
     total_units = sum(len(u) for b in locations.values() for u in b)
-    print(f"✅ Created {output_path}")
-    print(f"📊 {k} folds created for '{component}' ({total_units} total units)")
+    print(f"Created {output_path}")
+    print(f"{k} folds created for '{component}' ({total_units} total units)")
 
     return output_data
 
 
-# ---- Run as standalone script ----
+# change to your own path
 if __name__ == "__main__":
     build_kfold_splits("/Users/lucabighignoli/Desktop/uniProject/roomRender/DataTraining/wcd_enkelvoudig_index.json", 8, 20)

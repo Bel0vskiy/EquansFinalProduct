@@ -9,10 +9,9 @@ import os
 import argparse
 import glob
 from tqdm import tqdm
-import numpy as np # Import numpy for nan checks
+import numpy as np
 import platform
 
-# --- Device Configuration ---
 def get_device():
     if torch.cuda.is_available():
         return torch.device('cuda')
@@ -24,7 +23,6 @@ def get_device():
 device = get_device()
 print(f"Using device: {device}")
 
-# --- Configuration Loading ---
 def load_config():
     script_dir = os.path.dirname(__file__)
     abs_config_path = os.path.join(script_dir, 'config.json')
@@ -36,16 +34,15 @@ config = load_config()
 model_config = config['model_params']
 training_config = config['training_params']
 
-# --- New, Simplified Dataset for Preprocessed Graphs ---
 class PreprocessedComponentDataset(Dataset):
     def __init__(self, root_dir, split_type='train_val', split_file_path=None, kfold_file_path=None, fold_key=None, transform=None, pre_transform=None, split_name=None):
         
         super().__init__(root_dir, transform, pre_transform)
-        self.split_type = split_type # 'train_val' or 'kfold'
+        self.split_type = split_type
         self.split_file_path = split_file_path
         self.kfold_file_path = kfold_file_path
-        self.fold_key = fold_key # e.g., 'fold_1'
-        self.split_name = split_name # <-- Moved here
+        self.fold_key = fold_key
+        self.split_name = split_name
         self.graph_files = self._get_graph_files()
 
     def _get_graph_files(self):
@@ -63,8 +60,7 @@ class PreprocessedComponentDataset(Dataset):
             with open(self.split_file_path, 'r') as f:
                 split_data = json.load(f)
             
-            # Assuming split_name is 'train' or 'validation'
-            split_name = self.fold_key # Using fold_key to pass 'train' or 'validation'
+            split_name = self.fold_key
             if split_name not in split_data:
                  raise ValueError(f"Split name '{split_name}' not found in {self.split_file_path}")
 
@@ -79,10 +75,6 @@ class PreprocessedComponentDataset(Dataset):
             with open(self.kfold_file_path, 'r') as f:
                 kfold_data = json.load(f)
             
-            # This part needs to determine if we're building a TRAIN or VALIDATION set for the fold.
-            # I'll use `split_name` (passed as fold_key) to distinguish.
-            
-            # First, collect all unique units from all folds in the kfold_data
             all_units_in_kfold_index = set()
             for fold_name, fold_content in kfold_data['folds'].items():
                 for building, units in fold_content.items():
@@ -97,12 +89,9 @@ class PreprocessedComponentDataset(Dataset):
             else:
                 raise ValueError(f"Fold '{self.fold_key}' not found in {self.kfold_file_path}")
             
-            # Determine if this dataset instance is for training or validation of the current fold
             if self.split_name == 'train_fold': 
-                # For training, use all units *not* in the current fold (K-1 folds)
                 units_for_split = all_units_in_kfold_index - current_fold_units
             elif self.split_name == 'val_fold':
-                # For validation, use the units *in* the current fold (1 fold)
                 units_for_split = current_fold_units
             else:
                 raise ValueError(f"Invalid split name for kfold: {self.split_name}. Must be 'train_fold' or 'val_fold'.")
@@ -112,7 +101,7 @@ class PreprocessedComponentDataset(Dataset):
         else:
             raise ValueError("Invalid split_type. Must be 'train_val' or 'kfold'.")
 
-        # Filter all_graphs_in_dir based on the unit set
+
         filtered_files = [
             f for f in all_graphs_in_dir
             if any(os.path.basename(f).startswith(unit_prefix) for unit_prefix in units_for_split)
@@ -130,47 +119,30 @@ class PreprocessedComponentDataset(Dataset):
         data = torch.load(self.graph_files[idx], weights_only=False)
         return data
 
-# --- Helper Function to Find Target Component ---
-# --- Helper Function to Find Target Components for Batch ---
 def get_target_info(data):
-    """
-    Finds all target components in the batch by looking for those with non-NaN pose labels.
-    Returns:
-    - target_comp_indices: Tensor containing the indices of all target component nodes.
-    - target_edge_mask: A boolean mask for all edges originating from these target components.
-    """
+
     y_pose = data['component', 'candidate_placement', 'surface'].y_pose
     
-    # Find the indices of edges with valid (non-NaN) pose labels
-    # dim=1 check is to see if any coordinate (u or v) is non-NaN, meaning it's a target
     valid_pose_edge_mask = ~torch.isnan(y_pose).any(dim=1)
     
-     # If no valid pose edges are found, return None
     if not valid_pose_edge_mask.any():
         return None, None
 
-    # Get the source node (component) indices for these valid edges
     edge_index_src = data['component', 'candidate_placement', 'surface'].edge_index[0]
     
-    # Identify unique target component indices
-    # We filter edge_index_src by the valid pose mask to get source nodes of "target" edges
     target_comp_indices = torch.unique(edge_index_src[valid_pose_edge_mask])
 
-    # Now, create a mask for ALL edges that originate from ANY of these target components
-    # This efficiently selects all candidate placement edges for all target components in the batch
-    # using broadcasting: (num_edges, 1) == (1, num_targets) -> (num_edges, num_targets) -> any(dim=1)
     target_edge_mask = (edge_index_src.unsqueeze(1) == target_comp_indices.unsqueeze(0)).any(dim=1)
     
     return target_comp_indices, target_edge_mask
 
-# --- Training & Validation Loops ---
 def train_epoch(loader, model, optimizer, class_loss_fn, reg_loss_fn, alpha, device):
     model.train()
     total_loss = 0
     graphs_processed = 0
     
     for data in tqdm(loader, desc="Training"):
-        data = data.to(device) # Move batch to device
+        data = data.to(device)
         target_comp_indices, edge_mask = get_target_info(data)
         
         if target_comp_indices is None:
@@ -178,7 +150,6 @@ def train_epoch(loader, model, optimizer, class_loss_fn, reg_loss_fn, alpha, dev
 
             continue
 
-        # graphs_processed represents the number of batches, effectively
         graphs_processed += 1
         optimizer.zero_grad()
         
@@ -215,7 +186,7 @@ def validate(loader, model, class_loss_fn, reg_loss_fn, alpha, device):
     
     with torch.no_grad():
         for data in tqdm(loader, desc="Validating"):
-            data = data.to(device) # Move batch to device
+            data = data.to(device)
             target_comp_indices, edge_mask = get_target_info(data)
             
             if target_comp_indices is None:
@@ -229,16 +200,10 @@ def validate(loader, model, class_loss_fn, reg_loss_fn, alpha, device):
             
             class_loss = class_loss_fn(comp_specific_logits, comp_specific_y_surface)
 
-            # --- Metrics Calculation (Batched) ---
-            # To calculate accuracy/MAE per component, we need to regroup the logits/labels by component.
-            # Using scatter or a loop over components. Given the small number of targets per batch, a loop is acceptable.
-            
-            # Map filtered edges back to their source component index for grouping
             edge_index_src = data['component', 'candidate_placement', 'surface'].edge_index[0]
             masked_src_indices = edge_index_src[edge_mask]
 
             for comp_idx in target_comp_indices:
-                # Mask for the specific component within the batch-wide masked tensors
                 specific_comp_mask = (masked_src_indices == comp_idx)
                 
                 curr_logits = comp_specific_logits[specific_comp_mask]
@@ -270,7 +235,6 @@ def validate(loader, model, class_loss_fn, reg_loss_fn, alpha, device):
 
     return avg_loss, accuracy, avg_mae
 
-# --- K-fold Training Function ---
 def run_kfold_training(args):
     print(f"\n--- Starting K-fold Cross-Validation ---")
     
@@ -291,7 +255,6 @@ def run_kfold_training(args):
     for i, fold_key in enumerate(folds.keys()):
         print(f"\n--- Running Fold {i+1}/{num_folds}: {fold_key} ---")
 
-        # Create datasets for the current fold
         train_dataset = PreprocessedComponentDataset(
             root_dir=args.graphs_dir, 
             split_type='kfold', 
@@ -306,8 +269,6 @@ def run_kfold_training(args):
             fold_key=fold_key, 
             split_name='val_fold'
         )
-
-        # Data Loader Optimization: num_workers, pin_memory
         train_loader = DataLoader(
             train_dataset, 
             batch_size=training_config.get('batch_size', 1), 
@@ -327,7 +288,6 @@ def run_kfold_training(args):
         print(f"Fold {fold_key}: Training dataset contains {len(train_dataset)} graphs.")
         print(f"Fold {fold_key}: Validation dataset contains {len(val_dataset)} graphs.")
 
-        # Initialize a new model and optimizer for each fold
         model = ComponentPlacementGNN(
             component_in_channels=training_config['component_in_channels'],
             surface_in_channels=training_config['surface_in_channels'],
@@ -337,7 +297,7 @@ def run_kfold_training(args):
         regression_loss_fn = nn.MSELoss()
         optimizer = optim.Adam(model.parameters(), lr=training_config['learning_rate'])
         
-        model = model.to(device) # Move model to device
+        model = model.to(device)
 
         best_fold_val_loss = float('inf')
 
@@ -349,10 +309,7 @@ def run_kfold_training(args):
 
             if val_loss < best_fold_val_loss:
                 best_fold_val_loss = val_loss
-                # Optionally save best model for this fold
-                # torch.save(model.state_dict(), os.path.join(args.graphs_dir, f'best_model_{fold_key}.pth'))
         
-        # Store results for this fold
         all_fold_val_losses.append(val_loss)
         all_fold_val_accs.append(val_acc)
         all_fold_val_maes.append(val_mae)
@@ -363,15 +320,11 @@ def run_kfold_training(args):
     print(f"Average Validation MAE: {np.mean(all_fold_val_maes):.4f} +/- {np.std(all_fold_val_maes):.4f}")
 
 
-
-# --- Standard Train/Validation Function ---
 def run_standard_train_val(args):
     print(f"\n--- Starting Standard Train/Validation ---")
-    # Instantiate Datasets and DataLoaders
     train_dataset = PreprocessedComponentDataset(root_dir=args.graphs_dir, split_type='train_val', split_file_path=args.split_json, fold_key='train')
     val_dataset = PreprocessedComponentDataset(root_dir=args.graphs_dir, split_type='train_val', split_file_path=args.split_json, fold_key='validation')
 
-    # Data Loader Optimization: num_workers, pin_memory
     train_loader = DataLoader(
         train_dataset, 
         batch_size=training_config.get('batch_size', 1), 
@@ -391,14 +344,12 @@ def run_standard_train_val(args):
     print(f"Training dataset contains {len(train_dataset)} graphs.")
     print(f"Validation dataset contains {len(val_dataset)} graphs.")
 
-    # --- Checkpointing Setup ---
     script_dir = os.path.dirname(__file__)
     CHECKPOINT_DIR = os.path.join(script_dir, 'checkpoints')
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
     BEST_MODEL_PATH = os.path.join(CHECKPOINT_DIR, 'best_model.pth')
     LAST_MODEL_PATH = os.path.join(CHECKPOINT_DIR, 'last_model.pth')
 
-    # Instantiate Model, Loss, and Optimizer
     model = ComponentPlacementGNN(
         component_in_channels=training_config['component_in_channels'],
         surface_in_channels=training_config['surface_in_channels'],
@@ -408,7 +359,7 @@ def run_standard_train_val(args):
     regression_loss_fn = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=training_config['learning_rate'])
 
-    model = model.to(device) # Move model to device
+    model = model.to(device)
 
     if args.resume and os.path.exists(BEST_MODEL_PATH):
         model.load_state_dict(torch.load(BEST_MODEL_PATH))
@@ -416,7 +367,6 @@ def run_standard_train_val(args):
     else:
         print("Starting training from scratch.")
 
-    # Training loop
     print(f"\nStarting training for {training_config['epochs']} epochs...")
     best_val_loss = float('inf')
     
@@ -438,20 +388,17 @@ def run_standard_train_val(args):
     print("Standard train/validation finished.")
 
 
-# --- Main Execution ---
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train the Component Placement GNN with preprocessed graphs.")
     parser.add_argument('--graphs_dir', type=str, default='Model/graphs', help='Directory containing the preprocessed graph files.')
     parser.add_argument('--resume', action='store_true', help='Resume training from the last checkpoint if available.')
     
-    # --- Split Type Arguments ---
     split_group = parser.add_mutually_exclusive_group(required=True)
     split_group.add_argument('--split_json', type=str, help='Path to the train/validation split JSON file.')
     split_group.add_argument('--kfold_json', type=str, help='Path to the k-fold splits JSON file.')
     
     args = parser.parse_args()
 
-    # Determine which training mode to run
     if args.kfold_json:
         run_kfold_training(args)
     elif args.split_json:

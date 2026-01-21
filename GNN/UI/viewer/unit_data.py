@@ -3,7 +3,6 @@ import json
 import pyvista as pv
 
 class UnitData:
-    """Holds mesh and metadata for a single unit."""
 
     def __init__(self, unit_id: int, data_path: str):
         self.id = unit_id
@@ -15,7 +14,6 @@ class UnitData:
         self.loaded = False
 
     def load_data(self) -> bool:
-        """Load metadata JSON for the unit."""
         try:
             with open(self.json_path, 'r') as f:
                 self.data = json.load(f)
@@ -25,7 +23,6 @@ class UnitData:
             return False
 
     def load_mesh(self) -> bool:
-        """Load the OBJ mesh file for the unit."""
         try:
             if os.path.exists(self.mesh_path):
                 self.mesh = pv.read(self.mesh_path)
