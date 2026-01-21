@@ -1,15 +1,3 @@
-"""
-This script runs a comprehensive evaluation on a trained model against a specified
-validation set. It calculates the real-world Euclidean distance error in millimeters
-for every component in the set.
-
-The script reports two primary metrics:
-1.  Blind Error (mm): The average positional error across all predictions,
-    regardless of whether the chosen surface was correct.
-2.  Correct Surface Error (mm): The average positional error for only the
-    predictions where the model correctly identified the surface.
-"""
-
 import torch
 import os
 import argparse
@@ -22,7 +10,6 @@ import re
 from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
-# Use relative imports since this script is now inside the Model package
 from model import ComponentPlacementGNN
 from train_optimised import get_target_info, PreprocessedComponentDataset
 from evaluate import (
@@ -33,29 +20,14 @@ from evaluate import (
 )
 
 
-# --- DATA LOADING & EXPERIMENT-SPECIFIC FUNCTIONS ---
-
 class ExperimentDataset(PreprocessedComponentDataset):
-    """
-    Custom dataset that inherits from the training dataset but also returns
-    the filepath of the graph, which is needed to find the original room data.
-    """
     def get(self, idx: int) -> Tuple[any, str]:
         filepath = self.graph_files[idx]
         data = torch.load(filepath, weights_only=False)
         return data, filepath
 
 def load_real_bounds(graph_filepath: str, original_data_root: str) -> Optional[Tuple[np.ndarray, np.ndarray]]:
-    """
-    Derives the path to the original 'data.json' from the graph filename
-    and loads the room 'min' and 'max' bounds.
-    
-    Example graph_filepath: '.../graphs/gebouwE_unit_0001_comp_5.pt'
-    Example original_data_root: 'Data/DataOriginal'
-    """
     filename = os.path.basename(graph_filepath)
-    
-    # Regex to extract building and unit names
     match = re.match(r"^(?P<building>\w+)_unit_(?P<unit>\d+)_comp_\d+\.pt$", filename)
     if not match:
         print(f"Warning: Could not parse filename '{filename}'")
@@ -64,8 +36,6 @@ def load_real_bounds(graph_filepath: str, original_data_root: str) -> Optional[T
     building = match.group('building')
     unit_id = match.group('unit')
     unit_name = f"unit_{unit_id}"
-    
-    # Construct the path to the original data.json
     json_path = os.path.join(original_data_root, building, unit_name, "data.json")
     
     if not os.path.exists(json_path):
@@ -85,7 +55,6 @@ def load_real_bounds(graph_filepath: str, original_data_root: str) -> Optional[T
 
 
 def load_model(model_path: str, config_path: str) -> ComponentPlacementGNN:
-    """Loads a model from specified model and config paths."""
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model not found at {model_path}")
     if not os.path.exists(config_path):
@@ -104,16 +73,9 @@ def load_model(model_path: str, config_path: str) -> ComponentPlacementGNN:
     print(f"Successfully loaded model from {model_path}")
     return model
 
-# --- MAIN EXPERIMENT FUNCTION ---
-
 def run_experiment(model: ComponentPlacementGNN, args: argparse.Namespace):
-    """
-    Main experiment loop that iterates through the validation set and computes
-    real-world error metrics.
-    """
     print("\n--- Starting Validation Set Experiment ---")
     
-    # 1. Create Dataset and DataLoader
     if args.split_json:
         print("--- Mode: Standard Validation Set ---")
         val_dataset = ExperimentDataset(
@@ -134,7 +96,6 @@ def run_experiment(model: ComponentPlacementGNN, args: argparse.Namespace):
             split_name='val_fold'
         )
     else:
-        # This case should be prevented by the argparse group
         raise ValueError("Either --split_json or --kfold_json must be provided.")
 
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False) # Batch size must be 1
@@ -144,13 +105,11 @@ def run_experiment(model: ComponentPlacementGNN, args: argparse.Namespace):
     all_errors_mm = []
     correct_surface_errors_mm = []
 
-    # 2. Loop through validation data
     for data, filepath in tqdm(val_loader, desc="Evaluating Validation Set"):
         target_comp_idx, edge_mask = get_target_info(data)
         if target_comp_idx is None:
             continue
             
-        # 3. Get predictions and ground truth (normalized)
         prediction = get_model_prediction(model, data, target_comp_idx)
         if prediction is None:
             continue
@@ -158,16 +117,13 @@ def run_experiment(model: ComponentPlacementGNN, args: argparse.Namespace):
         comp_specific_edge_mask = (data['component', 'candidate_placement', 'surface'].edge_index[0] == target_comp_idx)
         ground_truth = get_ground_truth(data, comp_specific_edge_mask)
 
-        # The DataLoader wraps file paths in a tuple/list, so extract the first element.
         current_filepath = filepath[0]
 
-        # 4. Get real-world room bounds
         room_min, room_max = load_real_bounds(current_filepath, args.original_data_dir)
         if room_min is None or room_max is None:
             tqdm.write(f"Skipping graph {os.path.basename(current_filepath)} due to missing room bounds.")
             continue
 
-        # 5. Convert predicted and true positions to real-world mm
         pred_surf_features = data['surface'].x[prediction['global_surf_idx']]
         pred_xyz_norm = get_xyz_from_uv(
             prediction['coords'],
@@ -184,18 +140,14 @@ def run_experiment(model: ComponentPlacementGNN, args: argparse.Namespace):
         )
         true_xyz_mm = global_denormalize(true_xyz_norm, room_min, room_max)
 
-        # 6. Calculate Euclidean distance in mm
         error_mm = np.linalg.norm(pred_xyz_mm - true_xyz_mm)
         all_errors_mm.append(error_mm)
 
-        # Check if the surface was guessed correctly
         if prediction['global_surf_idx'] == ground_truth['global_surf_idx']:
             correct_surface_errors_mm.append(error_mm)
 
-    # 7. Report final metrics
     print("\n--- Experiment Results ---")
     
-    # Initialize metrics to NaN
     surface_accuracy = np.nan
     avg_correct_surf_error = np.nan
     avg_blind_error = np.nan
@@ -223,7 +175,6 @@ def run_experiment(model: ComponentPlacementGNN, args: argparse.Namespace):
         print("\nNo predictions with the correct surface were made.")
     
     
-    # --- 8. Generate CDF Plot if requested ---
     if args.graph:
         import matplotlib.pyplot as plt
         
@@ -231,7 +182,6 @@ def run_experiment(model: ComponentPlacementGNN, args: argparse.Namespace):
         
         fig, ax = plt.subplots(figsize=(10, 6))
 
-        # Function to plot a CDF
         def plot_cdf(errors, label, color):
             if not errors:
                 return
@@ -239,7 +189,6 @@ def run_experiment(model: ComponentPlacementGNN, args: argparse.Namespace):
             yvals = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
             ax.plot(sorted_errors, yvals, label=label, marker='.', linestyle='none', markersize=4)
 
-        # Plot CDF for both blind and correct surface errors
         if all_errors_mm:
             plot_cdf(all_errors_mm, 'All Predictions (Blind Error)', 'blue')
         if correct_surface_errors_mm:
@@ -250,11 +199,9 @@ def run_experiment(model: ComponentPlacementGNN, args: argparse.Namespace):
         ax.set_title("CDF of Placement Prediction Error")
         ax.grid(True, which='both', linestyle='--')
         
-        # Only show legend if there is something to label
         if all_errors_mm or correct_surface_errors_mm:
             ax.legend()
         
-        # Define a path for the plot in the same directory as the script
         script_dir = os.path.dirname(__file__)
         plot_path = os.path.join(script_dir, 'placement_error_cdf.png')
         try:
@@ -265,10 +212,7 @@ def run_experiment(model: ComponentPlacementGNN, args: argparse.Namespace):
 
     return surface_accuracy, avg_correct_surf_error, avg_blind_error
 
-
-# --- MAIN EXECUTION ---
 if __name__ == '__main__':
-    # Assumes the script is run from the GNN/ directory
     parser = argparse.ArgumentParser(description="Run a detailed, real-world evaluation on the GNN model.")
     
     split_group = parser.add_mutually_exclusive_group(required=True)

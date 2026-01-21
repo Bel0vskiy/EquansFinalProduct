@@ -266,7 +266,7 @@ def run_unit_mode(args, model):
         print(f"\n{'-'*48}")
         masked_graph = apply_mask_to_graph(norm_graph, idx)
         data = next(iter(DataLoader([masked_graph], batch_size=1)))
-    evaluate_graph(model, data, unmasked_comp_x=norm_graph['component'].x, room_min=room_min, room_max=room_max)
+        evaluate_graph(model, data, unmasked_comp_x=norm_graph['component'].x, room_min=room_min, room_max=room_max)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

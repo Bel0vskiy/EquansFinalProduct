@@ -10,10 +10,9 @@ import argparse
 import glob
 from tqdm import tqdm
 import numpy as np 
-from types import SimpleNamespace # Import SimpleNamespace for creating argument objects
+from types import SimpleNamespace
 
 
-# --- Configuration Loading ---
 def load_config():
     script_dir = os.path.dirname(__file__)
     abs_config_path = os.path.join(script_dir, 'config.json')
@@ -25,7 +24,6 @@ config = load_config()
 model_config = config['model_params']
 training_config = config['training_params']
 
-# --- New, Simplified Dataset for Preprocessed Graphs ---
 class PreprocessedComponentDataset(Dataset):
     _file_cache = None 
 
@@ -37,14 +35,10 @@ class PreprocessedComponentDataset(Dataset):
         self.fold_key = fold_key
         self.split_name = split_name
         
-        # 1. Build Index ONCE (Startup Optimization)
         if PreprocessedComponentDataset._file_cache is None:
             PreprocessedComponentDataset._file_cache = self._index_directory(root_dir)
 
-        # 2. Get file paths
         self.graph_files = self._get_files_from_index()
-
-        # 3. RAM CACHE (Training Speed Optimization)
         print(f"Loading {len(self.graph_files)} graphs into RAM...")
         self.data_cache = []
         for path in tqdm(self.graph_files, desc="Caching Data"):
@@ -106,7 +100,6 @@ class PreprocessedComponentDataset(Dataset):
     def get(self, idx):
         return self.data_cache[idx]
 
-# --- Helper Function to Find Target Component ---
 def get_target_info(data):
     y_pose = data['component', 'candidate_placement', 'surface'].y_pose
     valid_pose_edge_indices = torch.where(~torch.isnan(y_pose).any(dim=1))[0]
@@ -120,7 +113,6 @@ def get_target_info(data):
     
     return target_comp_idx, target_edge_mask
 
-# --- Training & Validation Loops ---
 def train_epoch(loader, model, optimizer, class_loss_fn, reg_loss_fn, alpha):
     model.train()
     total_loss = 0
@@ -207,9 +199,7 @@ def validate(loader, model, class_loss_fn, reg_loss_fn, alpha):
 
     return avg_loss, accuracy, avg_mae
 
-# --- K-fold Training Function ---
 def run_kfold_training(args):
-    # Import locally to break circular dependency
     from experiments import run_experiment, load_model
     print(f"\n--- Starting K-fold Cross-Validation ---")
     
@@ -223,17 +213,16 @@ def run_kfold_training(args):
     num_folds = len(folds)
     print(f"Detected {num_folds} folds.")
 
-    # Checkpointing setup for k-fold models
     script_dir = os.path.dirname(__file__)
     CHECKPOINT_DIR = os.path.join(script_dir, 'checkpoints', 'kfold')
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
     all_fold_val_losses = []
-    all_fold_val_accuracies = [] # Store accuracies from validate()
-    all_fold_val_maes = []       # Store MAEs from validate()
-    all_fold_experiment_accuracies = [] # Store surface accuracy from run_experiment
-    all_fold_experiment_correct_surf_errors = [] # Store correct surface error from run_experiment
-    all_fold_experiment_blind_errors = [] # Store blind error from run_experiment
+    all_fold_val_accuracies = []
+    all_fold_val_maes = []       
+    all_fold_experiment_accuracies = [] 
+    all_fold_experiment_correct_surf_errors = [] 
+    all_fold_experiment_blind_errors = [] 
 
 
     for i, fold_key in enumerate(folds.keys()):
@@ -269,8 +258,6 @@ def run_kfold_training(args):
         regression_loss_fn = nn.MSELoss()
         optimizer = optim.Adam(model.parameters(), lr=training_config['learning_rate'])
         
-        # --- SCHEDULER ADDED HERE ---
-        # Reduces LR if val_loss doesn't improve for a number of epochs
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, 
             mode='min', 
@@ -279,14 +266,12 @@ def run_kfold_training(args):
         )
         
         best_fold_val_loss = float('inf')
-        best_fold_val_acc = 0.0 # Track best accuracy for this fold
-        best_fold_val_mae = float('inf') # Track best MAE for this fold
+        best_fold_val_acc = 0.0 
+        best_fold_val_mae = float('inf') 
         
-        # --- EARLY STOPPING VARS ---
         early_stopping_patience = training_config.get('early_stopping_patience', 30)
         epochs_no_improve = 0
 
-        # Define path for the best model of the current fold
         current_fold_best_model_path = os.path.join(CHECKPOINT_DIR, f'best_model_{fold_key}.pth')
 
         for epoch in range(1, training_config['epochs'] + 1):
@@ -297,54 +282,46 @@ def run_kfold_training(args):
             
             tqdm.write(f"Fold {fold_key} - Epoch {epoch:03d}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}, Val MAE: {val_mae:.4f}")
 
-            # Check for best model based on accuracy and MAE, similar to standard train/val
             is_best_for_fold = False
-            # Condition 1: Accuracy is strictly better
-            # Condition 2: Accuracy is equal, but MAE is better (Tie-breaker)
             if val_acc > best_fold_val_acc or (val_acc == best_fold_val_acc and val_mae < best_fold_val_mae):
                 is_best_for_fold = True
             
             if is_best_for_fold:
                 best_fold_val_acc = val_acc
                 best_fold_val_mae = val_mae
-                best_fold_val_loss = val_loss # Store loss corresponding to best acc/mae
+                best_fold_val_loss = val_loss 
                 torch.save(model.state_dict(), current_fold_best_model_path)
                 tqdm.write(f"  -> New Best Model for Fold {fold_key}! (Acc: {best_fold_val_acc:.4f}, MAE: {best_fold_val_mae:.4f})")
-                epochs_no_improve = 0 # Reset patience
+                epochs_no_improve = 0 
             else:
                 epochs_no_improve += 1
                 if epochs_no_improve >= early_stopping_patience:
                     tqdm.write(f"\n✋ STOPPING EARLY for Fold {fold_key}! Acc/MAE hasn't improved in {early_stopping_patience} epochs.")
-                    break # Exit epoch loop for current fold
+                    break 
         
-        # After epoch loop for current fold, append the best metrics from validate()
         all_fold_val_losses.append(best_fold_val_loss)
         all_fold_val_accuracies.append(best_fold_val_acc)
         all_fold_val_maes.append(best_fold_val_mae)
         
-        # --- Run experiment for this fold's best model ---
         tqdm.write(f"Running experiment for best model of Fold {fold_key}...")
         
-        # Load the best model saved for this fold
-        # Re-initialize model to ensure a clean state before loading
         model = ComponentPlacementGNN(
             component_in_channels=training_config['component_in_channels'],
             surface_in_channels=training_config['surface_in_channels'],
             config_path=os.path.join(os.path.dirname(__file__), 'config.json')
         )
         model.load_state_dict(torch.load(current_fold_best_model_path))
-        model.eval() # Ensure model is in eval mode for experiment
+        model.eval() 
 
-        # Create a Namespace object to pass arguments to run_experiment
         experiment_args = SimpleNamespace(
             graphs_dir=args.graphs_dir,
             kfold_json=args.kfold_json,
             fold_key=fold_key,
             original_data_dir=args.original_data_dir,
-            model_path=current_fold_best_model_path, # Not strictly needed as model is passed directly, but good for consistency
+            model_path=current_fold_best_model_path, 
             config_path=os.path.join(os.path.dirname(__file__), 'config.json'),
-            split_json=None, # Ensure this is None for kfold
-            graph=args.graph # Pass the graph argument along
+            split_json=None, 
+            graph=args.graph 
         )
 
         surf_acc, correct_surf_err, blind_err = run_experiment(model, experiment_args)
@@ -355,15 +332,11 @@ def run_kfold_training(args):
 
     print(f"\n--- K-fold Cross-Validation Complete ---")
     
-    # Report aggregated metrics from validate() function
     print(f"Average Validation Loss: {np.mean(all_fold_val_losses):.4f} +/- {np.std(all_fold_val_losses):.4f}")
     print(f"Average Validation Accuracy: {np.mean(all_fold_val_accuracies):.4f} +/- {np.std(all_fold_val_accuracies):.4f}")
     print(f"Average Validation MAE: {np.mean(all_fold_val_maes):.4f} +/- {np.std(all_fold_val_maes):.4f} mm")
-
-    # Report aggregated metrics from run_experiment() function
     print(f"\n--- K-fold Experiment Results (Aggregated) ---")
     
-    # Filter out NaN values before calculating mean/std for experiment results
     valid_exp_acc = [x for x in all_fold_experiment_accuracies if not np.isnan(x)]
     valid_exp_correct_err = [x for x in all_fold_experiment_correct_surf_errors if not np.isnan(x)]
     valid_exp_blind_err = [x for x in all_fold_experiment_blind_errors if not np.isnan(x)]
@@ -429,10 +402,8 @@ def run_standard_train_val(args):
     print(f"\nStarting training for {training_config['epochs']} epochs...")
     best_val_loss = float('inf')
 
-    # --- 1. SETUP EARLY STOPPING VARS ---
-    early_stopping_patience = training_config.get('early_stopping_patience', 30)  # Stop if no improvement for N epochs
+    early_stopping_patience = training_config.get('early_stopping_patience', 30)  
     epochs_no_improve = 0
-    # ------------------------------------
 
     best_val_acc = 0.0
     best_val_mae = float('inf')
@@ -452,8 +423,6 @@ def run_standard_train_val(args):
         history['val_acc'].append(val_acc)
         history['val_dist'].append(val_mae)
 
-        # Condition 1: Accuracy is strictly better
-        # Condition 2: Accuracy is equal, but MAE is better (Tie-breaker)
         is_best = False
         if val_acc >= best_val_acc and val_mae <= best_val_mae:
             is_best = True
@@ -479,7 +448,6 @@ def run_standard_train_val(args):
         print("Generating and saving training history plots...")
         script_dir = os.path.dirname(__file__)
 
-        # --- Plot 1: Loss ---
         fig1, ax1 = plt.subplots(figsize=(12, 6))
         ax1.plot(history['epoch'], history['train_loss'], label='Training Loss', marker='o')
         ax1.plot(history['epoch'], history['val_loss'], label='Validation Loss', marker='o')
@@ -497,7 +465,6 @@ def run_standard_train_val(args):
             print(f"Could not save loss plot due to an error: {e}")
         plt.close(fig1)
 
-        # --- Plot 2: Accuracy and MAE ---
         fig2, ax2_acc = plt.subplots(figsize=(12, 6))
         ax2_dist = ax2_acc.twinx()
 
