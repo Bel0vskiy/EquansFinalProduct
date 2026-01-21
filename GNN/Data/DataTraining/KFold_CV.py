@@ -11,7 +11,6 @@ def build_kfold_splits(input_json_path, k=5, seed=None):
     if seed is not None:
         random.seed(seed)
 
-    # Load input JSON
     with open(input_json_path, "r") as f:
         data = json.load(f)
 

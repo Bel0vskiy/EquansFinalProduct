@@ -12,7 +12,6 @@ especially useful to create the training dataset
 
 
 def build_single_component_index(root_folder,root_trainingFolder ,target_component):
-    # Clean the component name (normalize like before)
     name_cleaner = re.compile(r"^(.*?)(?::\d+)?$")
     clean_target = name_cleaner.match(target_component.strip()).group(1)
 
@@ -46,29 +45,26 @@ def build_single_component_index(root_folder,root_trainingFolder ,target_compone
                                 break  # found it in this unit, skip rest
 
             except Exception as e:
-                print(f"⚠️ Error reading {json_path}: {e}")
+                print(f"Error reading {json_path}: {e}")
 
-    # Prepare JSON structure
     output_data = {
         "component": clean_target,
         "locations": dict(result)
     }
-
-    # Write file named after component
     safe_name = clean_target.replace("/", "_").replace(" ", "_")
     output_path = os.path.join(root_trainingFolder, f"{safe_name}_index.json")
 
     with open(output_path, "w") as f:
         json.dump(output_data, f, indent=2)
 
-    print(f"✅ Index for '{clean_target}' created at: {output_path}")
+    print(f"Index for '{clean_target}' created at: {output_path}")
     total_units = sum(len(u) for u in result.values())
     print(f"Found in {len(result)} buildings, {total_units} total units.")
 
     return output_data
 
 
-# Example usage:
+#example usage
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     root_folder = os.path.join(script_dir, "..", "Data")

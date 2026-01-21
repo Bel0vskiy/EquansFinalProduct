@@ -4,10 +4,7 @@ import random
 import sys
 
 
-
 def split_dataset(input_json_path, train_ratio=0.8):
-
-    # load the input json
     with open(input_json_path, "r") as f:
         data = json.load(f)
 

@@ -40,7 +40,7 @@ def load_real_bounds(unit_path_norm: str) -> Tuple[np.ndarray, np.ndarray]:
     print(f"DEBUG: derived real json path: {json_path}")
     
     if not os.path.exists(json_path):
-        print(f"⚠️ Warning: Original data.json not found at {json_path}")
+        print(f"Warning: Original data.json not found at {json_path}")
         return np.zeros(3), np.ones(3)
         
     with open(json_path, 'r') as f:
