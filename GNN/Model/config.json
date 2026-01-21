@@ -1,15 +1,18 @@
 {
     "model_params": {
         "hidden_channels": 64,
-        "num_gnn_layers": 3,
+        "num_gnn_layers": 2,
         "num_heads":4
     },
     "training_params": {
         "component_in_channels": 61,
         "surface_in_channels": 13,
         "learning_rate": 0.001,
-        "epochs": 300,
-        "alpha": 0.5 ,
-        "batch_size": 1 
+        "epochs": 500,
+        "alpha": 1 ,
+        "batch_size": 1,
+        "scheduler_factor": 0.8,
+        "scheduler_patience": 20,
+        "early_stopping_patience": 50
     }
 }
