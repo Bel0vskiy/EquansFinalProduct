@@ -188,7 +188,6 @@ def main():
                         r["sockets"].append(entry)
                     break
 
-    # ---------- SAVE ----------
     with open(OUT_JSON, "w", encoding="utf-8") as f:
         json.dump(rooms, f, indent=2, ensure_ascii=False)
 

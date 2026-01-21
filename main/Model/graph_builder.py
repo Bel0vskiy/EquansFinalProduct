@@ -105,7 +105,8 @@ def build_room_graph(
         raise ImportError("PyTorch is required for this function.")
 
     if data_analysis_dir is None:
-        data_analysis_dir = "Data/DataAnalysis"
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # GNN root
+        data_analysis_dir = os.path.join(base_dir, "Data", "DataAnalysis")
     vocab = build_component_types(data_analysis_dir)
     name_to_idx = build_name_to_index(vocab)
 

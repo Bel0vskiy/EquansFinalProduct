@@ -191,7 +191,7 @@ class SceneManager:
                                 continue
 
                             size = max_coords - min_coords
-                            if np.any(size <= 1e-6):  # Use tolerance for size check
+                            if np.any(size <= 1e-6):
                                 print(f"Warning: Skipping object '{actor_name}' due to near-zero size: {size}")
                                 continue
 
@@ -257,7 +257,6 @@ class SceneManager:
     def add_marker_sphere(self, position: np.ndarray, color: str = 'red', radius: float = 10.0):
         if self.plotter is None:
             return
-        
         try:
             sphere = pv.Sphere(radius=radius, center=position)
             marker_name = f"marker_{self.marker_count}"
@@ -267,11 +266,33 @@ class SceneManager:
         except Exception as e:
             print(f"Error adding marker sphere: {e}")
 
-    def clear_all_markers(self):
+    def add_marker_label(self, position: np.ndarray, text: str, color: str = 'black'):
+        """Adds a text label at the given position."""
         if self.plotter is None:
             return
         
-        # Find all actor names that start with 'marker_'
+        try:
+            marker_name = f"marker_label_{self.marker_count}"
+            
+            self.plotter.add_point_labels(
+                [position], 
+                [text],
+                point_size=0,
+                name=marker_name,
+                always_visible=True,
+                show_points=False,
+                text_color=color,
+                shape_opacity=0.5
+            )
+            self.marker_count += 1
+            print(f"Added label '{text}' at {position}")
+        except Exception as e:
+            print(f"Error adding marker label: {e}")
+            traceback.print_exc()
+
+    def clear_all_markers(self):
+        if self.plotter is None:
+            return
         actors_to_remove = [name for name in self.plotter.actors if name.startswith("marker_")]
         
         if not actors_to_remove:

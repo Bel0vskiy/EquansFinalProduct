@@ -2,7 +2,7 @@ import numpy as np
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGroupBox, QLabel, QListWidget, QTextEdit,
     QCheckBox, QPushButton, QListWidgetItem, QHBoxLayout, QLineEdit,
-    QComboBox, QMessageBox
+    QComboBox, QMessageBox, QApplication
 )
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtCore import Qt, QLocale
@@ -23,20 +23,32 @@ class PropertiesPanel(QWidget):
         layout = QVBoxLayout(self)
 
         self.unit_info_group = QGroupBox("Unit Information")
-        unit_layout = QVBoxLayout()
+        self.unit_info_layout = QVBoxLayout()
+        
         self.unit_id_label = QLabel("Unit ID: None")
         self.unit_bounds_label = QLabel("Bounds: None")
         self.unit_objects_label = QLabel("Objects: None")
-        unit_layout.addWidget(self.unit_id_label)
-        unit_layout.addWidget(self.unit_bounds_label)
-        unit_layout.addWidget(self.unit_objects_label)
-        self.unit_info_group.setLayout(unit_layout)
+        
+        self.unit_info_layout.addWidget(self.unit_id_label)
+        self.unit_info_layout.addWidget(self.unit_bounds_label)
+        self.unit_info_layout.addWidget(self.unit_objects_label)
+        self.unit_info_group.setLayout(self.unit_info_layout)
+        
+
+        self.unit_info_toggle = QPushButton("Hide Unit Information")
+        self.unit_info_toggle.setCheckable(True)
+        self.unit_info_toggle.setChecked(False)
+        self.unit_info_toggle.clicked.connect(lambda: self.toggle_group(self.unit_info_group, self.unit_info_toggle))
+        self.unit_info_toggle.setProperty("class", "panel_toggle")
+        
+        layout.addWidget(self.unit_info_toggle)
         layout.addWidget(self.unit_info_group)
 
-        # --- Object Details Group ---
         self.object_details_group = QGroupBox("Object Details")
         object_layout = QVBoxLayout()
+        
         self.object_list = QListWidget()
+        self.object_list.setMaximumHeight(100)
         self.object_list.itemClicked.connect(self.on_object_selected)
         object_layout.addWidget(self.object_list)
         
@@ -48,6 +60,17 @@ class PropertiesPanel(QWidget):
 
         self.object_details_group = QGroupBox("Object Details")
         self.object_details_group.setLayout(object_layout)
+        
+
+        self.object_details_toggle = QPushButton("Show Object Details")
+        self.object_details_toggle.setCheckable(True)
+        self.object_details_toggle.setChecked(True)
+        self.object_details_toggle.clicked.connect(lambda: self.toggle_group(self.object_details_group, self.object_details_toggle))
+        self.object_details_toggle.setProperty("class", "panel_toggle")
+
+        self.object_details_group.setVisible(False) 
+        
+        layout.addWidget(self.object_details_toggle)
         layout.addWidget(self.object_details_group)
 
         layout.addStretch()
@@ -60,7 +83,6 @@ class PropertiesPanel(QWidget):
         if unit and unit.data:
             self.unit_id_label.setText(f"Unit ID: {unit.data.get('id', 'N/A')}")
 
-            # Format bounds correctly
             min_coords = unit.data.get('min')
             max_coords = unit.data.get('max')
             if isinstance(min_coords, list) and len(min_coords) == 3 and \
@@ -141,6 +163,9 @@ class VisibilityPanel(QWidget):
 
         self.categories_group = QGroupBox("Object Categories")
         categories_layout = QVBoxLayout()
+        categories_layout.setContentsMargins(5, 5, 5, 5)
+        categories_layout.setSpacing(2)
+        
         for category, settings in self.scene_manager.object_categories.items():
             checkbox = QCheckBox(category)
             checkbox.setChecked(settings.get('visible', True)) 
@@ -152,6 +177,8 @@ class VisibilityPanel(QWidget):
 
         self.scene_group = QGroupBox("Scene Controls")
         scene_layout = QVBoxLayout()
+        scene_layout.setContentsMargins(5, 5, 5, 5)
+        
         self.reset_view_btn = QPushButton("Reset View")
         self.reset_view_btn.clicked.connect(self.reset_view)
         scene_layout.addWidget(self.reset_view_btn)
@@ -238,8 +265,12 @@ class MarkerPanel(QWidget):
         buttons_layout = QHBoxLayout()
         self.place_btn = QPushButton("Place Marker")
         self.place_btn.clicked.connect(self._on_place_marker)
+        self.place_btn.setProperty("class", "primary")
+        
         self.clear_btn = QPushButton("Clear All Markers")
         self.clear_btn.clicked.connect(self._on_clear_markers)
+        self.clear_btn.setProperty("class", "danger")
+        
         buttons_layout.addWidget(self.place_btn)
         buttons_layout.addWidget(self.clear_btn)
         group_layout.addLayout(buttons_layout)
@@ -264,6 +295,7 @@ class MarkerPanel(QWidget):
             
             self.scene_manager.add_marker_sphere(position, color, radius)
             
+            
         except ValueError:
             QMessageBox.warning(self, "Invalid Input", 
                                 "Please enter coordinates in the format 'x, y, z' and a valid radius.")
@@ -279,12 +311,14 @@ class BoundingBoxPanel(QWidget):
     def __init__(self, scene_manager: SceneManager):
         super().__init__()
         self.scene_manager = scene_manager
+        self.current_unit_path: Optional[str] = None
+        self.target_indices: Dict[str, int] = {}
         self._init_ui()
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
-
-        group = QGroupBox("Draw Bounding Box")
+        
+        group = QGroupBox("GNN Prediction (wcd enkelvoudig)")
         group_layout = QVBoxLayout()
 
         self.coords_input = QTextEdit()
@@ -316,12 +350,22 @@ class BoundingBoxPanel(QWidget):
         buttons_layout.addWidget(self.clear_btn)
         group_layout.addLayout(buttons_layout)
 
+        result_label = QLabel("Results:")
+        result_label.setStyleSheet("font-weight: bold;")
+        group_layout.addWidget(result_label)
+        self.result_text = QTextEdit()
+        self.result_text.setReadOnly(True)
+        self.result_text.setMaximumHeight(120)
+        self.result_text.setPlaceholderText("Prediction results will appear here...")
+        group_layout.addWidget(self.result_text)
+        
         group.setLayout(group_layout)
         layout.addWidget(group)
+        layout.addStretch()
 
     def _on_draw_box(self):
         try:
-            text = self.coords_input.toPlainText()
+            targets = evaluate.get_available_targets(unit_path, "wcd enkelvoudig")
             
             cleaned_text = text.replace('[', '').replace(']', '').replace('\n', '')
             parts = cleaned_text.split(',')
@@ -340,7 +384,8 @@ class BoundingBoxPanel(QWidget):
             QMessageBox.warning(self, "Invalid Input", 
                                 f"Could not parse coordinates. Please ensure you provide 8 vertices.\n\nError: {ve}")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to list targets: {e}")
+            self.predict_btn.setEnabled(False)
 
     def _on_clear_box(self):
         self.scene_manager.clear_bounding_box()
