@@ -150,7 +150,7 @@ The main window displays the 3D interactive scene.
 *   **Visibility Panel**: Toggle the checkboxes to show/hide specific units or object categories (e.g., "ET" for electrical).
 *   **Object Details**: Click on any object in the "Object Details" list to highlight it in yellow in the 3D view and see its properties (dimensions, coordinates).
 
-#### 4. GNN Prediction (New Feature)
+#### 4. GNN Prediction
 Use the **"GNN Prediction (wcd enkelvoudig)"** panel to run the model:
 1.  **Select Target Object**: Choose a specific target instance (e.g., a socket) from the dropdown list.
 2.  **Predict Position**: Click the button to run the GNN inference for that target.
