@@ -288,7 +288,7 @@ class GNNViewerWidget(QWidget):
         self.scene_manager.add_unit(unit)  
         self.visibility_panel.add_unit_checkbox(unit_id, f"Unit {unit_id}")
         self.properties_panel.update_unit_info(unit)  
-        # self.prediction_panel.update_targets(unit_path)
+        self.prediction_panel.update_targets(unit_path)
 
         self.show_message(f"Loaded Unit {unit_id}")
         print(f"Successfully loaded Unit {unit_id}")
